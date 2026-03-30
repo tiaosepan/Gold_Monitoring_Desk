@@ -1,0 +1,7 @@
+战争事件总数: 25
+最高分战争事件:
+  5分 - 关键词:[]
+Traceback (most recent call last):
+  File "D:\www\prototype\Gold_Monitoring_Desk\check_war_scores.py", line 11, in <module>
+    print(f'    标题: {e.title[:80] if len(e.title) <= 80 else e.title[:80]+"..."}')
+UnicodeEncodeError: 'gbk' codec can't encode character '\U0001f422' in position 8: illegal multibyte sequence

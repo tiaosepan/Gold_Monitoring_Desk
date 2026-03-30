@@ -1,0 +1,66 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg
+*.egg-info/
+dist/
+build/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# 虚拟环境
+venv/
+env/
+ENV/
+.venv
+
+# 数据库文件
+database/*.db
+database/*.db-journal
+database/*.db-wal
+database/*.db-shm
+*.sqlite
+*.sqlite3
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# 日志文件
+*.log
+logs/
+
+# 环境变量
+.env
+.env.local
+.env.*.local
+
+# 临时文件
+*.tmp
+*.bak
+*.cache
+temp/
+tmp/
+
+# MCP 和 Cursor 相关
+.cursor/
+.claude/
+.playwright-mcp/
+agent-transcripts/
+mcps/
+
+# 测试覆盖率
+.coverage
+htmlcov/
+.pytest_cache/
+
+# 操作系统
+Thumbs.db
+desktop.ini

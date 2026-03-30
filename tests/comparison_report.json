@@ -1,0 +1,185 @@
+{
+  "timestamp": "2026-03-25T12:24:25.225163",
+  "summary": {
+    "total_checks": 29,
+    "passed": 1,
+    "failed": 1,
+    "warnings": 27
+  },
+  "differences": [
+    {
+      "category": "API",
+      "item": "原系统API结构",
+      "status": "PASS",
+      "message": "成功获取原系统API结构"
+    },
+    {
+      "category": "字段对比",
+      "item": "数据字段",
+      "status": "FAIL",
+      "message": "对比失败: 'gbk' codec can't encode character '\\u2713' in position 2: illegal multibyte sequence"
+    },
+    {
+      "category": "RSS源",
+      "item": "RSS源1",
+      "status": "INFO",
+      "message": "https://rss.huxiu.com/"
+    },
+    {
+      "category": "RSS源",
+      "item": "RSS源2",
+      "status": "INFO",
+      "message": "https://quanwenrss.com/bloomberg/economics"
+    },
+    {
+      "category": "RSS源",
+      "item": "RSS源3",
+      "status": "INFO",
+      "message": "http://rss.jintiankansha.me/rss/GM3DSNZUGJ6DOYTEG5RWENZRGUZDENLDGAYGMMDGMRSTONBRMUYWMM3FMQ2DGYZXMZSTGNDGG4YQ===="
+    },
+    {
+      "category": "RSS源",
+      "item": "RSS源4",
+      "status": "INFO",
+      "message": "https://rss.beehiiv.com/feeds/4aF2pGVAEN.xml"
+    },
+    {
+      "category": "RSS源",
+      "item": "RSS源5",
+      "status": "INFO",
+      "message": "http://rss.jintiankansha.me/rss/GM4DKMRUG56DIYZTHE2TAY3EGNTDAMLGMQZWKMRRGNRWCZBQMY2TSZLEGEYTQN3DMQYDSNZUGQYA===="
+    },
+    {
+      "category": "RSS源",
+      "item": "RSS源6",
+      "status": "INFO",
+      "message": "http://rss.jintiankansha.me/rss/GM3DSNZUGJ6DOYTEG5RWENZRGUZDENLDGAYGMMDGMRSTONBRMUYWMM3FMQ2DGYZXMZSTGNDGG4YQ===="
+    },
+    {
+      "category": "配置",
+      "item": "premium_threshold",
+      "status": "INFO",
+      "message": "溢价阈值 = 20.0"
+    },
+    {
+      "category": "配置",
+      "item": "poll_interval_seconds",
+      "status": "INFO",
+      "message": "轮询间隔 = 60"
+    },
+    {
+      "category": "配置",
+      "item": "alert_cooldown_seconds",
+      "status": "INFO",
+      "message": "警报冷却时间 = 900"
+    },
+    {
+      "category": "配置",
+      "item": "reversal_cooldown_seconds",
+      "status": "INFO",
+      "message": "反转冷却时间 = 1800"
+    },
+    {
+      "category": "配置",
+      "item": "reversal_price_lookback_minutes",
+      "status": "INFO",
+      "message": "价格回看分钟数 = 60"
+    },
+    {
+      "category": "配置",
+      "item": "reversal_price_rebound_pct",
+      "status": "INFO",
+      "message": "价格反弹百分比 = 1.2"
+    },
+    {
+      "category": "配置",
+      "item": "reversal_price_ma_window",
+      "status": "INFO",
+      "message": "价格MA窗口 = 15"
+    },
+    {
+      "category": "配置",
+      "item": "reversal_signal_window_minutes",
+      "status": "INFO",
+      "message": "信号窗口分钟数 = 180"
+    },
+    {
+      "category": "配置",
+      "item": "us10y_drop_threshold_bp",
+      "status": "INFO",
+      "message": "美债下跌阈值(bp) = 1.0"
+    },
+    {
+      "category": "配置",
+      "item": "us10y_drop_lookback_hours",
+      "status": "INFO",
+      "message": "美债回看小时数 = 24.0"
+    },
+    {
+      "category": "配置",
+      "item": "rss_poll_interval_seconds",
+      "status": "INFO",
+      "message": "RSS轮询间隔 = 1800"
+    },
+    {
+      "category": "功能",
+      "item": "both_markets_open",
+      "status": "WARN",
+      "message": "需要实现: 双市场开盘检测"
+    },
+    {
+      "category": "功能",
+      "item": "shfe_market_open",
+      "status": "WARN",
+      "message": "需要实现: 沪金市场开盘检测"
+    },
+    {
+      "category": "功能",
+      "item": "london_market_open",
+      "status": "WARN",
+      "message": "需要实现: 伦敦市场开盘检测"
+    },
+    {
+      "category": "功能",
+      "item": "alert_cooldown",
+      "status": "WARN",
+      "message": "需要实现: 警报冷却机制"
+    },
+    {
+      "category": "功能",
+      "item": "reversal_cooldown",
+      "status": "WARN",
+      "message": "需要实现: 反转冷却机制"
+    },
+    {
+      "category": "功能",
+      "item": "price_ma_window",
+      "status": "WARN",
+      "message": "需要实现: 价格移动平均"
+    },
+    {
+      "category": "功能",
+      "item": "price_rebound_detection",
+      "status": "WARN",
+      "message": "需要实现: 价格反弹检测"
+    },
+    {
+      "category": "功能",
+      "item": "rss_impact_scoring",
+      "status": "WARN",
+      "message": "需要实现: RSS影响评分"
+    },
+    {
+      "category": "功能",
+      "item": "rss_keyword_matching",
+      "status": "WARN",
+      "message": "需要实现: RSS关键词匹配"
+    },
+    {
+      "category": "功能",
+      "item": "us10y_fred_fallback",
+      "status": "WARN",
+      "message": "需要实现: 美债FRED回退"
+    }
+  ]
+}

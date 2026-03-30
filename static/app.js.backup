@@ -1,0 +1,857 @@
+// 全局状态管理
+const state = {
+    currentView: 'overview',
+    sgeData: [],
+    us10yData: [],
+    rssEvents: [],
+    reversalData: [],
+    systemStatus: null,
+    charts: {}
+};
+
+// API基础URL
+const API_BASE = '';
+
+// 初始化应用
+document.addEventListener('DOMContentLoaded', () => {
+    initNavigation();
+    initAutoRefresh();
+    loadOverviewData();
+});
+
+// 初始化导航
+function initNavigation() {
+    const navItems = document.querySelectorAll('.nav-item');
+    
+    navItems.forEach(item => {
+        item.addEventListener('click', (e) => {
+            e.preventDefault();
+            
+            // 更新导航状态
+            navItems.forEach(nav => nav.classList.remove('active'));
+            item.classList.add('active');
+            
+            // 切换视图
+            const view = item.dataset.view;
+            switchView(view);
+        });
+    });
+}
+
+// 切换视图
+function switchView(view) {
+    // 隐藏所有视图
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    
+    // 显示目标视图
+    const targetView = document.getElementById(`${view}-view`);
+    if (targetView) {
+        targetView.classList.add('active');
+        state.currentView = view;
+        
+        // 加载对应视图的数据
+        loadViewData(view);
+    }
+}
+
+// 加载视图数据
+function loadViewData(view) {
+    switch(view) {
+        case 'overview':
+            loadOverviewData();
+            break;
+        case 'sge':
+            loadSGEData();
+            break;
+        case 'reversal':
+            loadReversalData();
+            break;
+        case 'us10y':
+            loadUS10YData();
+            break;
+        case 'rss':
+            loadRSSData();
+            break;
+        case 'system':
+            loadSystemStatus();
+            break;
+    }
+}
+
+// 加载总览数据
+async function loadOverviewData() {
+    try {
+        const response = await fetch(`${API_BASE}/api/status`);
+        const data = await response.json();
+        
+        updateOverviewUI(data);
+    } catch (error) {
+        console.error('加载总览数据失败:', error);
+    }
+}
+
+// 更新总览UI
+function updateOverviewUI(data) {
+    // 更新状态卡片 - 使用/api/status的数据结构
+    if (data.latest_sample) {
+        const premium = data.latest_sample.premium_cny_per_g || 0;
+        const londonPrice = data.latest_sample.london_price_usd_per_oz || 0;
+        const shfePrice = data.latest_sample.shfe_price_cny_per_g || 0;
+        const premiumPercent = shfePrice > 0 ? (premium / shfePrice * 100) : 0;
+        
+        document.getElementById('sge-premium').textContent = 
+            `${premium.toFixed(2)} 元/克`;
+        document.getElementById('sge-premium-percent').textContent = 
+            `${premiumPercent.toFixed(2)}%`;
+        document.getElementById('international-price').textContent = 
+            `${londonPrice.toFixed(2)}`;
+    }
+    
+    if (data.us10y_reversal && data.us10y_reversal.latest_sample) {
+        const yieldPct = data.us10y_reversal.latest_sample.yield_pct || 0;
+        document.getElementById('us10y-yield').textContent = 
+            `${yieldPct.toFixed(2)}%`;
+    } else {
+        document.getElementById('us10y-yield').textContent = '--';
+    }
+    
+    if (data.gold_reversal && data.gold_reversal.latest_sample) {
+        const reversal = data.gold_reversal.latest_sample;
+        document.getElementById('reversal-level').textContent = 
+            `Level ${reversal.signal_level || 0}`;
+        
+        const conditionTexts = [];
+        if (reversal.price_signal) conditionTexts.push('价格');
+        if (reversal.political_signal) conditionTexts.push('政治');
+        if (reversal.war_signal) conditionTexts.push('战争');
+        if (reversal.us10y_signal) conditionTexts.push('美债');
+        
+        document.getElementById('reversal-conditions').textContent = 
+            conditionTexts.length > 0 ? conditionTexts.join(' | ') : '无';
+    }
+    
+    // 渲染SGE图表 - 使用recent_samples数据
+    if (data.recent_samples && data.recent_samples.length > 0) {
+        renderSGEChartFromStatusData(data.recent_samples);
+    }
+    
+    // 渲染RSS事件
+    if (data.gold_reversal && data.gold_reversal.recent_events) {
+        renderRSSEventsFromStatusData(data.gold_reversal.recent_events);
+    }
+    
+    // 更新最后更新时间
+    updateLastUpdateTime();
+}
+
+// 渲染SGE图表
+function renderSGEChart(sgeData) {
+    const chartDom = document.getElementById('sge-chart');
+    if (!chartDom) return;
+    
+    let chart = state.charts.sgeChart;
+    if (!chart) {
+        chart = echarts.init(chartDom);
+        state.charts.sgeChart = chart;
+    }
+    
+    // 准备数据
+    fetch(`${API_BASE}/api/sge/latest?limit=50`)
+        .then(res => res.json())
+        .then(result => {
+            if (result.success && result.data) {
+                const data = result.data.reverse();
+                
+                const times = data.map(d => new Date(d.timestamp).toLocaleTimeString());
+                const premiums = data.map(d => d.premium);
+                const premiumPercents = data.map(d => d.premium_percent);
+                
+                const option = {
+                    tooltip: {
+                        trigger: 'axis',
+                        axisPointer: {
+                            type: 'cross'
+                        }
+                    },
+                    legend: {
+                        data: ['溢价(元/克)', '溢价率(%)']
+                    },
+                    grid: {
+                        left: '3%',
+                        right: '4%',
+                        bottom: '3%',
+                        containLabel: true
+                    },
+                    xAxis: {
+                        type: 'category',
+                        boundaryGap: false,
+                        data: times
+                    },
+                    yAxis: [
+                        {
+                            type: 'value',
+                            name: '溢价(元/克)',
+                            position: 'left'
+                        },
+                        {
+                            type: 'value',
+                            name: '溢价率(%)',
+                            position: 'right'
+                        }
+                    ],
+                    series: [
+                        {
+                            name: '溢价(元/克)',
+                            type: 'line',
+                            data: premiums,
+                            smooth: true,
+                            lineStyle: {
+                                color: '#667eea'
+                            },
+                            itemStyle: {
+                                color: '#667eea'
+                            }
+                        },
+                        {
+                            name: '溢价率(%)',
+                            type: 'line',
+                            yAxisIndex: 1,
+                            data: premiumPercents,
+                            smooth: true,
+                            lineStyle: {
+                                color: '#764ba2'
+                            },
+                            itemStyle: {
+                                color: '#764ba2'
+                            }
+                        }
+                    ]
+                };
+                
+                chart.setOption(option);
+            }
+        });
+}
+
+// 渲染美债图表
+function renderUS10YChart(us10yData) {
+    const chartDom = document.getElementById('us10y-chart');
+    if (!chartDom) return;
+    
+    let chart = state.charts.us10yChart;
+    if (!chart) {
+        chart = echarts.init(chartDom);
+        state.charts.us10yChart = chart;
+    }
+    
+    // 准备数据
+    fetch(`${API_BASE}/api/us10y/latest?limit=50`)
+        .then(res => res.json())
+        .then(result => {
+            if (result.success && result.data) {
+                const data = result.data.reverse();
+                
+                const times = data.map(d => new Date(d.timestamp).toLocaleTimeString());
+                const yields = data.map(d => d.yield);
+                
+                const option = {
+                    tooltip: {
+                        trigger: 'axis'
+                    },
+                    grid: {
+                        left: '3%',
+                        right: '4%',
+                        bottom: '3%',
+                        containLabel: true
+                    },
+                    xAxis: {
+                        type: 'category',
+                        boundaryGap: false,
+                        data: times
+                    },
+                    yAxis: {
+                        type: 'value',
+                        name: '收益率(%)'
+                    },
+                    series: [
+                        {
+                            name: '收益率',
+                            type: 'line',
+                            data: yields,
+                            smooth: true,
+                            areaStyle: {
+                                color: 'rgba(102, 126, 234, 0.2)'
+                            },
+                            lineStyle: {
+                                color: '#667eea'
+                            },
+                            itemStyle: {
+                                color: '#667eea'
+                            }
+                        }
+                    ]
+                };
+                
+                chart.setOption(option);
+            }
+        });
+}
+
+// 渲染RSS事件
+function renderRSSEvents(rssData) {
+    if (!rssData) return;
+    
+    // 政治事件
+    const politicalContainer = document.getElementById('political-events');
+    if (politicalContainer && rssData.political) {
+        politicalContainer.innerHTML = rssData.political.map(event => `
+            <div class="event-item" onclick="window.open('${event.link}', '_blank')">
+                <div class="event-title">${event.title}</div>
+                <div class="event-meta">
+                    ${event.source_name}
+                    <span class="event-score">${event.score}分</span>
+                </div>
+            </div>
+        `).join('');
+    }
+    
+    // 战争事件
+    const warContainer = document.getElementById('war-events');
+    if (warContainer && rssData.war) {
+        warContainer.innerHTML = rssData.war.map(event => `
+            <div class="event-item" onclick="window.open('${event.link}', '_blank')">
+                <div class="event-title">${event.title}</div>
+                <div class="event-meta">
+                    ${event.source_name}
+                    <span class="event-score">${event.score}分</span>
+                </div>
+            </div>
+        `).join('');
+    }
+}
+
+// 加载SGE数据
+async function loadSGEData() {
+    try {
+        const response = await fetch(`${API_BASE}/api/sge/latest?limit=100`);
+        const result = await response.json();
+        
+        if (result.success) {
+            state.sgeData = result.data;
+            renderSGEDetailChart();
+            renderSGETable();
+        }
+    } catch (error) {
+        console.error('加载SGE数据失败:', error);
+    }
+}
+
+// 渲染SGE详细图表
+function renderSGEDetailChart() {
+    const chartDom = document.getElementById('sge-detail-chart');
+    if (!chartDom) return;
+    
+    let chart = state.charts.sgeDetailChart;
+    if (!chart) {
+        chart = echarts.init(chartDom);
+        state.charts.sgeDetailChart = chart;
+    }
+    
+    const data = state.sgeData.slice().reverse();
+    const times = data.map(d => new Date(d.timestamp).toLocaleString());
+    const sgePrices = data.map(d => d.sge_price);
+    const intlPrices = data.map(d => d.international_price);
+    const premiums = data.map(d => d.premium);
+    
+    const option = {
+        tooltip: {
+            trigger: 'axis',
+            axisPointer: {
+                type: 'cross'
+            }
+        },
+        legend: {
+            data: ['SGE价格', '国际金价', '溢价']
+        },
+        grid: {
+            left: '3%',
+            right: '4%',
+            bottom: '3%',
+            containLabel: true
+        },
+        xAxis: {
+            type: 'category',
+            boundaryGap: false,
+            data: times
+        },
+        yAxis: [
+            {
+                type: 'value',
+                name: '价格',
+                position: 'left'
+            },
+            {
+                type: 'value',
+                name: '溢价',
+                position: 'right'
+            }
+        ],
+        series: [
+            {
+                name: 'SGE价格',
+                type: 'line',
+                data: sgePrices,
+                smooth: true
+            },
+            {
+                name: '国际金价',
+                type: 'line',
+                data: intlPrices,
+                smooth: true
+            },
+            {
+                name: '溢价',
+                type: 'line',
+                yAxisIndex: 1,
+                data: premiums,
+                smooth: true
+            }
+        ]
+    };
+    
+    chart.setOption(option);
+}
+
+// 渲染SGE表格
+function renderSGETable() {
+    const tbody = document.querySelector('#sge-table tbody');
+    if (!tbody) return;
+    
+    tbody.innerHTML = state.sgeData.map(d => `
+        <tr>
+            <td>${new Date(d.timestamp).toLocaleString()}</td>
+            <td>${d.sge_price.toFixed(2)}</td>
+            <td>${d.international_price.toFixed(2)}</td>
+            <td>${d.usdcny_rate.toFixed(4)}</td>
+            <td>${d.premium.toFixed(2)}</td>
+            <td>${d.premium_percent.toFixed(2)}%</td>
+        </tr>
+    `).join('');
+}
+
+// 加载反转数据
+async function loadReversalData() {
+    try {
+        // 加载最新反转状态
+        const latestResponse = await fetch(`${API_BASE}/api/reversal/latest`);
+        const latestResult = await latestResponse.json();
+        
+        if (latestResult.success && latestResult.data) {
+            updateReversalStatus(latestResult.data);
+        }
+        
+        // 加载历史记录
+        const historyResponse = await fetch(`${API_BASE}/api/reversal/history?limit=100`);
+        const historyResult = await historyResponse.json();
+        
+        if (historyResult.success) {
+            state.reversalData = historyResult.data;
+            renderReversalTable();
+        }
+    } catch (error) {
+        console.error('加载反转数据失败:', error);
+    }
+}
+
+// 更新反转状态
+function updateReversalStatus(data) {
+    // 更新等级显示
+    document.getElementById('current-reversal-level').textContent = data.reversal_level;
+    
+    // 更新条件状态
+    const conditions = data.conditions;
+    
+    updateConditionItem('price', conditions.price);
+    updateConditionItem('political', conditions.political);
+    updateConditionItem('war', conditions.war);
+    updateConditionItem('us10y', conditions.us10y);
+}
+
+// 更新条件项
+function updateConditionItem(type, isActive) {
+    const item = document.getElementById(`condition-${type}`);
+    if (!item) return;
+    
+    const statusEl = item.querySelector('.condition-status');
+    
+    if (isActive) {
+        item.classList.add('active');
+        statusEl.textContent = '已满足';
+    } else {
+        item.classList.remove('active');
+        statusEl.textContent = '未满足';
+    }
+}
+
+// 渲染反转表格
+function renderReversalTable() {
+    const tbody = document.querySelector('#reversal-table tbody');
+    if (!tbody) return;
+    
+    tbody.innerHTML = state.reversalData.map(d => `
+        <tr>
+            <td>${new Date(d.timestamp).toLocaleString()}</td>
+            <td>${d.reversal_level}</td>
+            <td>${d.price_condition ? '✓' : '✗'}</td>
+            <td>${d.political_condition ? '✓' : '✗'}</td>
+            <td>${d.war_condition ? '✓' : '✗'}</td>
+            <td>${d.us10y_condition ? '✓' : '✗'}</td>
+        </tr>
+    `).join('');
+}
+
+// 加载美债数据
+async function loadUS10YData() {
+    try {
+        const response = await fetch(`${API_BASE}/api/us10y/latest?limit=100`);
+        const result = await response.json();
+        
+        if (result.success) {
+            state.us10yData = result.data;
+            renderUS10YDetailChart();
+            renderUS10YTable();
+        }
+    } catch (error) {
+        console.error('加载美债数据失败:', error);
+    }
+}
+
+// 渲染美债详细图表
+function renderUS10YDetailChart() {
+    const chartDom = document.getElementById('us10y-detail-chart');
+    if (!chartDom) return;
+    
+    let chart = state.charts.us10yDetailChart;
+    if (!chart) {
+        chart = echarts.init(chartDom);
+        state.charts.us10yDetailChart = chart;
+    }
+    
+    const data = state.us10yData.slice().reverse();
+    const times = data.map(d => new Date(d.timestamp).toLocaleString());
+    const yields = data.map(d => d.yield);
+    
+    const option = {
+        tooltip: {
+            trigger: 'axis'
+        },
+        grid: {
+            left: '3%',
+            right: '4%',
+            bottom: '3%',
+            containLabel: true
+        },
+        xAxis: {
+            type: 'category',
+            boundaryGap: false,
+            data: times
+        },
+        yAxis: {
+            type: 'value',
+            name: '收益率(%)'
+        },
+        series: [
+            {
+                name: '收益率',
+                type: 'line',
+                data: yields,
+                smooth: true,
+                areaStyle: {
+                    color: 'rgba(102, 126, 234, 0.2)'
+                }
+            }
+        ]
+    };
+    
+    chart.setOption(option);
+}
+
+// 渲染美债表格
+function renderUS10YTable() {
+    const tbody = document.querySelector('#us10y-table tbody');
+    if (!tbody) return;
+    
+    tbody.innerHTML = state.us10yData.map(d => `
+        <tr>
+            <td>${new Date(d.timestamp).toLocaleString()}</td>
+            <td>${d.yield.toFixed(2)}</td>
+        </tr>
+    `).join('');
+}
+
+// 加载RSS数据
+async function loadRSSData() {
+    try {
+        const category = document.querySelector('input[name="rss-category"]:checked').value;
+        const url = category === 'all' 
+            ? `${API_BASE}/api/rss/events?limit=100`
+            : `${API_BASE}/api/rss/events?category=${category}&limit=100`;
+        
+        const response = await fetch(url);
+        const result = await response.json();
+        
+        if (result.success) {
+            state.rssEvents = result.data;
+            renderRSSTable();
+        }
+    } catch (error) {
+        console.error('加载RSS数据失败:', error);
+    }
+}
+
+// 渲染RSS表格
+function renderRSSTable() {
+    const tbody = document.querySelector('#rss-table tbody');
+    if (!tbody) return;
+    
+    tbody.innerHTML = state.rssEvents.map(e => `
+        <tr>
+            <td>${e.published_at ? new Date(e.published_at).toLocaleString() : '--'}</td>
+            <td>${e.title}</td>
+            <td>${e.category === 'political' ? '政治' : '战争'}</td>
+            <td>${e.score}</td>
+            <td>${e.source_name}</td>
+            <td><a href="${e.link}" target="_blank">查看</a></td>
+        </tr>
+    `).join('');
+}
+
+// 加载系统状态
+async function loadSystemStatus() {
+    try {
+        const response = await fetch(`${API_BASE}/api/system/status`);
+        const result = await response.json();
+        
+        if (result.success) {
+            state.systemStatus = result.data;
+            renderSystemStatus();
+        }
+    } catch (error) {
+        console.error('加载系统状态失败:', error);
+    }
+}
+
+// 渲染系统状态
+function renderSystemStatus() {
+    const data = state.systemStatus;
+    
+    // 渲染健康状态
+    const healthContainer = document.getElementById('health-status');
+    if (healthContainer && data.health_status) {
+        healthContainer.innerHTML = data.health_status.map(h => `
+            <div class="status-item ${h.status}">
+                <div class="status-item-name">${h.source_name}</div>
+                <div class="status-item-value">状态: ${h.status}</div>
+                <div class="status-item-value">错误次数: ${h.error_count}</div>
+            </div>
+        `).join('');
+    }
+    
+    // 渲染调度状态
+    const schedulerContainer = document.getElementById('scheduler-status');
+    if (schedulerContainer && data.scheduler_status) {
+        schedulerContainer.innerHTML = data.scheduler_status.map(s => `
+            <div class="status-item">
+                <div class="status-item-name">${s.task_name}</div>
+                <div class="status-item-value">状态: ${s.status}</div>
+                <div class="status-item-value">
+                    最后运行: ${s.last_run_at ? new Date(s.last_run_at).toLocaleString() : '--'}
+                </div>
+            </div>
+        `).join('');
+    }
+    
+    // 渲染更新记录
+    const updateContainer = document.getElementById('update-records');
+    if (updateContainer && data.recent_updates) {
+        updateContainer.innerHTML = data.recent_updates.map(u => `
+            <div class="update-item">
+                <div class="update-item-info">
+                    <div class="update-item-type">${u.data_type}</div>
+                    <div class="update-item-time">${new Date(u.created_at).toLocaleString()}</div>
+                </div>
+                <div class="update-item-status ${u.status}">${u.status}</div>
+            </div>
+        `).join('');
+    }
+}
+
+// 刷新函数
+function refreshSGEData() {
+    loadSGEData();
+}
+
+function refreshReversalData() {
+    loadReversalData();
+}
+
+function refreshUS10YData() {
+    loadUS10YData();
+}
+
+function refreshRSSData() {
+    loadRSSData();
+}
+
+function refreshSystemStatus() {
+    loadSystemStatus();
+}
+
+// 更新最后更新时间
+function updateLastUpdateTime() {
+    document.getElementById('last-update').textContent = new Date().toLocaleString();
+}
+
+// 初始化自动刷新
+function initAutoRefresh() {
+    // 每30秒刷新一次当前视图
+    setInterval(() => {
+        loadViewData(state.currentView);
+    }, 30000);
+}
+
+// RSS分类过滤
+document.addEventListener('change', (e) => {
+    if (e.target.name === 'rss-category') {
+        loadRSSData();
+    }
+});
+
+// 窗口大小改变时重新渲染图表
+window.addEventListener('resize', () => {
+    Object.values(state.charts).forEach(chart => {
+        if (chart) {
+            chart.resize();
+        }
+    });
+});
+
+// 从/api/status数据渲染SGE图表
+function renderSGEChartFromStatusData(samples) {
+    const chartDom = document.getElementById('sge-chart');
+    if (!chartDom) return;
+    
+    let chart = state.charts.sgeChart;
+    if (!chart) {
+        chart = echarts.init(chartDom);
+        state.charts.sgeChart = chart;
+    }
+    
+    const times = samples.map(d => new Date(d.fetched_at).toLocaleTimeString());
+    const premiums = samples.map(d => d.premium_cny_per_g || 0);
+    const shfePrices = samples.map(d => d.shfe_price_cny_per_g || 0);
+    const premiumPercents = samples.map((d, i) => 
+        shfePrices[i] > 0 ? (premiums[i] / shfePrices[i] * 100) : 0
+    );
+    
+    const option = {
+        tooltip: {
+            trigger: 'axis',
+            axisPointer: {
+                type: 'cross'
+            }
+        },
+        legend: {
+            data: ['溢价(元/克)', '溢价率(%)']
+        },
+        grid: {
+            left: '3%',
+            right: '4%',
+            bottom: '3%',
+            containLabel: true
+        },
+        xAxis: {
+            type: 'category',
+            boundaryGap: false,
+            data: times
+        },
+        yAxis: [
+            {
+                type: 'value',
+                name: '溢价(元/克)',
+                position: 'left'
+            },
+            {
+                type: 'value',
+                name: '溢价率(%)',
+                position: 'right'
+            }
+        ],
+        series: [
+            {
+                name: '溢价(元/克)',
+                type: 'line',
+                data: premiums,
+                smooth: true,
+                lineStyle: {
+                    color: '#667eea'
+                },
+                itemStyle: {
+                    color: '#667eea'
+                }
+            },
+            {
+                name: '溢价率(%)',
+                type: 'line',
+                yAxisIndex: 1,
+                data: premiumPercents,
+                smooth: true,
+                lineStyle: {
+                    color: '#764ba2'
+                },
+                itemStyle: {
+                    color: '#764ba2'
+                }
+            }
+        ]
+    };
+    
+    chart.setOption(option);
+}
+
+// 从/api/status数据渲染RSS事件
+function renderRSSEventsFromStatusData(events) {
+    const politicalContainer = document.getElementById('political-events');
+    const warContainer = document.getElementById('war-events');
+    
+    if (!politicalContainer || !warContainer) return;
+    
+    const politicalEvents = events.filter(e => e.event_type === 'political');
+    const warEvents = events.filter(e => e.event_type === 'war');
+    
+    // 渲染政治事件
+    politicalContainer.innerHTML = politicalEvents.slice(0, 5).map(event => `
+        <div class="event-item">
+            <div class="event-header">
+                <span class="event-score score-${event.impact_level}">${event.impact_score}分</span>
+                <span class="event-time">${new Date(event.published_at).toLocaleString()}</span>
+            </div>
+            <div class="event-title">${event.title}</div>
+            <div class="event-keywords">${event.matched_keywords || '无关键词'}</div>
+            <div class="event-note">${event.impact_note || ''}</div>
+        </div>
+    `).join('');
+    
+    // 渲染战争事件
+    warContainer.innerHTML = warEvents.slice(0, 5).map(event => `
+        <div class="event-item">
+            <div class="event-header">
+                <span class="event-score score-${event.impact_level}">${event.impact_score}分</span>
+                <span class="event-time">${new Date(event.published_at).toLocaleString()}</span>
+            </div>
+            <div class="event-title">${event.title}</div>
+            <div class="event-keywords">${event.matched_keywords || '无关键词'}</div>
+            <div class="event-note">${event.impact_note || ''}</div>
+        </div>
+    `).join('');
+}

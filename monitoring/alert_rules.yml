@@ -1,0 +1,108 @@
+# Prometheus告警规则
+groups:
+  - name: gold_monitor_alerts
+    interval: 30s
+    rules:
+      # SGE采集失败率告警
+      - alert: SGECollectionFailureRate
+        expr: |
+          (
+            rate(sge_fetch_total{status="failed"}[5m]) 
+            / 
+            rate(sge_fetch_total[5m])
+          ) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          component: sge_monitor
+        annotations:
+          summary: "SGE数据采集失败率过高"
+          description: "最近5分钟SGE采集失败率超过10%，当前值: {{ $value | humanizePercentage }}"
+      
+      # SGE采集完全失败告警
+      - alert: SGECollectionDown
+        expr: |
+          rate(sge_fetch_total{status="success"}[10m]) == 0
+        for: 10m
+        labels:
+          severity: critical
+          component: sge_monitor
+        annotations:
+          summary: "SGE数据采集完全失败"
+          description: "最近10分钟没有成功采集任何SGE数据"
+      
+      # SGE采集耗时过长告警
+      - alert: SGECollectionSlow
+        expr: |
+          histogram_quantile(0.95, rate(sge_fetch_duration_seconds_bucket[5m])) > 5
+        for: 5m
+        labels:
+          severity: warning
+          component: sge_monitor
+        annotations:
+          summary: "SGE数据采集响应缓慢"
+          description: "95%的SGE采集请求耗时超过5秒，P95: {{ $value }}s"
+      
+      # 反转检测失败率告警
+      - alert: ReversalDetectionFailureRate
+        expr: |
+          (
+            rate(reversal_detect_total{status="failed"}[5m]) 
+            / 
+            rate(reversal_detect_total[5m])
+          ) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          component: reversal_detector
+        annotations:
+          summary: "反转检测失败率过高"
+          description: "最近5分钟反转检测失败率超过10%"
+      
+      # RSS源异常告警
+      - alert: RSSSourceDown
+        expr: |
+          rate(rss_collect_total{status="failed"}[15m]) > 0
+        for: 15m
+        labels:
+          severity: warning
+          component: rss_collector
+        annotations:
+          summary: "RSS源 {{ $labels.source }} 采集失败"
+          description: "RSS源 {{ $labels.source }} 在最近15分钟内持续失败"
+      
+      # 数据源健康告警
+      - alert: DataSourceUnhealthy
+        expr: |
+          data_source_health == 0
+        for: 10m
+        labels:
+          severity: warning
+          component: data_source
+        annotations:
+          summary: "数据源 {{ $labels.source_name }} 不健康"
+          description: "数据源 {{ $labels.source_name }} 已经10分钟处于异常状态"
+      
+      # 高等级反转信号告警
+      - alert: HighLevelReversalSignal
+        expr: |
+          reversal_signal_level >= 3
+        for: 1m
+        labels:
+          severity: info
+          component: reversal_detector
+        annotations:
+          summary: "检测到高等级反转信号"
+          description: "当前反转等级: Level {{ $value }}，建议关注"
+      
+      # API响应时间告警
+      - alert: APIResponseSlow
+        expr: |
+          histogram_quantile(0.95, rate(api_response_duration_seconds_bucket[5m])) > 2
+        for: 5m
+        labels:
+          severity: warning
+          component: api
+        annotations:
+          summary: "API {{ $labels.endpoint }} 响应缓慢"
+          description: "API端点 {{ $labels.endpoint }} 的P95响应时间超过2秒: {{ $value }}s"

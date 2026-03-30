@@ -1,0 +1,124 @@
+开始系统对比测试...
+原系统: http://rev.sccit.com.cn:8000
+复刻系统: http://localhost:8000
+
+=== API结构对比 ===
+
+原系统API结构:
+- settings: 19 个配置项
+- market_state: 4 个市场状态
+- latest_sample: 存在
+- recent_alerts: 0 条
+- recent_fetch_runs: 10 条
+- recent_samples: 20 条
+- gold_reversal: 存在
+- us10y_reversal: 存在
+
+原系统核心数据结构:
+  SGE数据字段: ['id', 'fetched_at', 'shfe_price_cny_per_g', 'london_price_usd_per_oz', 'usdcny_rate', 'london_price_cny_per_g', 'premium_cny_per_g', 'poll_interval_seconds', 'both_markets_open', 'shfe_market_open', 'london_market_open', 'alert_triggered', 'raw_payload', 'note']
+  反转数据字段: ['id', 'fetched_at', 'gold_price_usd_per_oz', 'usdcny_rate', 'price_signal', 'political_signal', 'war_signal', 'signal_level', 'triggered_conditions', 'note', 'us10y_signal']
+
+=== 数据字段对比 ===
+
+原系统SGE数据字段: ['alert_triggered', 'both_markets_open', 'fetched_at', 'id', 'london_market_open', 'london_price_cny_per_g', 'london_price_usd_per_oz', 'note', 'poll_interval_seconds', 'premium_cny_per_g', 'raw_payload', 'shfe_market_open', 'shfe_price_cny_per_g', 'usdcny_rate']
+
+关键字段检查:
+
+=== RSS源分析 ===
+
+原系统配置的RSS源 (6 个):
+  1. https://rss.huxiu.com/
+  2. https://quanwenrss.com/bloomberg/economics
+  3. http://rss.jintiankansha.me/rss/GM3DSNZUGJ6DOYTEG5RWENZRGUZDENLDGAYGMMDGMRSTONBRMUYWMM3FMQ2DGYZXMZSTGNDGG4YQ====
+  4. https://rss.beehiiv.com/feeds/4aF2pGVAEN.xml
+  5. http://rss.jintiankansha.me/rss/GM4DKMRUG56DIYZTHE2TAY3EGNTDAMLGMQZWKMRRGNRWCZBQMY2TSZLEGEYTQN3DMQYDSNZUGQYA====
+  6. http://rss.jintiankansha.me/rss/GM3DSNZUGJ6DOYTEG5RWENZRGUZDENLDGAYGMMDGMRSTONBRMUYWMM3FMQ2DGYZXMZSTGNDGG4YQ====
+
+RSS事件数据结构: ['id', 'fetched_at', 'published_at', 'source', 'feed_url', 'title', 'link', 'summary', 'event_type', 'matched_keywords', 'content_hash', 'impact_score', 'impact_level', 'impact_note']
+  - event_type: political
+  - impact_score: 7
+  - impact_level: 中
+  - matched_keywords: 停火,谈判
+
+=== 配置参数分析 ===
+
+原系统配置参数:
+  溢价阈值 (premium_threshold): 20.0
+  轮询间隔 (poll_interval_seconds): 60
+  警报冷却时间 (alert_cooldown_seconds): 900
+  反转冷却时间 (reversal_cooldown_seconds): 1800
+  价格回看分钟数 (reversal_price_lookback_minutes): 60
+  价格反弹百分比 (reversal_price_rebound_pct): 1.2
+  价格MA窗口 (reversal_price_ma_window): 15
+  信号窗口分钟数 (reversal_signal_window_minutes): 180
+  美债下跌阈值(bp) (us10y_drop_threshold_bp): 1.0
+  美债回看小时数 (us10y_drop_lookback_hours): 24.0
+  RSS轮询间隔 (rss_poll_interval_seconds): 1800
+
+=== 缺失功能识别 ===
+
+原系统特有功能:
+  - 双市场开盘检测 (both_markets_open)
+  - 沪金市场开盘检测 (shfe_market_open)
+  - 伦敦市场开盘检测 (london_market_open)
+  - 警报冷却机制 (alert_cooldown)
+  - 反转冷却机制 (reversal_cooldown)
+  - 价格移动平均 (price_ma_window)
+  - 价格反弹检测 (price_rebound_detection)
+  - RSS影响评分 (rss_impact_scoring)
+  - RSS关键词匹配 (rss_keyword_matching)
+  - 美债FRED回退 (us10y_fred_fallback)
+
+============================================================
+系统对比报告
+============================================================
+
+生成时间: 2026-03-25 12:24:25
+
+总检查项: 29
+通过: 1
+失败: 1
+警告: 27
+
+详细差异:
+
+【API】
+  [PASS] 原系统API结构: 成功获取原系统API结构
+
+【字段对比】
+  [FAIL] 数据字段: 对比失败: 'gbk' codec can't encode character '\u2713' in position 2: illegal multibyte sequence
+
+【RSS源】
+  [INFO] RSS源1: https://rss.huxiu.com/
+  [INFO] RSS源2: https://quanwenrss.com/bloomberg/economics
+  [INFO] RSS源3: http://rss.jintiankansha.me/rss/GM3DSNZUGJ6DOYTEG5RWENZRGUZDENLDGAYGMMDGMRSTONBRMUYWMM3FMQ2DGYZXMZSTGNDGG4YQ====
+  [INFO] RSS源4: https://rss.beehiiv.com/feeds/4aF2pGVAEN.xml
+  [INFO] RSS源5: http://rss.jintiankansha.me/rss/GM4DKMRUG56DIYZTHE2TAY3EGNTDAMLGMQZWKMRRGNRWCZBQMY2TSZLEGEYTQN3DMQYDSNZUGQYA====
+  [INFO] RSS源6: http://rss.jintiankansha.me/rss/GM3DSNZUGJ6DOYTEG5RWENZRGUZDENLDGAYGMMDGMRSTONBRMUYWMM3FMQ2DGYZXMZSTGNDGG4YQ====
+
+【配置】
+  [INFO] premium_threshold: 溢价阈值 = 20.0
+  [INFO] poll_interval_seconds: 轮询间隔 = 60
+  [INFO] alert_cooldown_seconds: 警报冷却时间 = 900
+  [INFO] reversal_cooldown_seconds: 反转冷却时间 = 1800
+  [INFO] reversal_price_lookback_minutes: 价格回看分钟数 = 60
+  [INFO] reversal_price_rebound_pct: 价格反弹百分比 = 1.2
+  [INFO] reversal_price_ma_window: 价格MA窗口 = 15
+  [INFO] reversal_signal_window_minutes: 信号窗口分钟数 = 180
+  [INFO] us10y_drop_threshold_bp: 美债下跌阈值(bp) = 1.0
+  [INFO] us10y_drop_lookback_hours: 美债回看小时数 = 24.0
+  [INFO] rss_poll_interval_seconds: RSS轮询间隔 = 1800
+
+【功能】
+  [WARN] both_markets_open: 需要实现: 双市场开盘检测
+  [WARN] shfe_market_open: 需要实现: 沪金市场开盘检测
+  [WARN] london_market_open: 需要实现: 伦敦市场开盘检测
+  [WARN] alert_cooldown: 需要实现: 警报冷却机制
+  [WARN] reversal_cooldown: 需要实现: 反转冷却机制
+  [WARN] price_ma_window: 需要实现: 价格移动平均
+  [WARN] price_rebound_detection: 需要实现: 价格反弹检测
+  [WARN] rss_impact_scoring: 需要实现: RSS影响评分
+  [WARN] rss_keyword_matching: 需要实现: RSS关键词匹配
+  [WARN] us10y_fred_fallback: 需要实现: 美债FRED回退
+
+报告已保存到: d:\www\prototype\Gold_Monitoring_Desk\tests\comparison_report.json

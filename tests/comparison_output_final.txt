@@ -1,0 +1,124 @@
+================================================================================
+系统详细对比测试
+================================================================================
+
+原系统: http://rev.sccit.com.cn:8000
+复刻系统: http://localhost:8000
+
+正在获取系统状态...
+[OK] 原系统状态获取成功
+[OK] 复刻系统状态获取成功
+
+================================================================================
+结构对比
+================================================================================
+
+发现 3 处差异:
+
+  - root.us10y_reversal.recent_runs[0].error_message: 类型不同 (NoneType vs str)
+  - root.us10y_reversal.latest_samples: 复刻系统缺少键 {'10y'}
+  - root.us10y_reversal.latest_sample: 类型不同 (dict vs NoneType)
+
+================================================================================
+配置参数对比
+================================================================================
+  [OK] premium_threshold: 20.0
+  [OK] poll_interval_seconds: 60
+  [OK] alert_cooldown_seconds: 900
+  [OK] reversal_cooldown_seconds: 1800
+  [OK] reversal_price_lookback_minutes: 60
+  [OK] reversal_price_rebound_pct: 1.2
+  [OK] reversal_price_ma_window: 15
+  [OK] reversal_signal_window_minutes: 180
+  [OK] us10y_drop_threshold_bp: 1.0
+  [OK] us10y_drop_lookback_hours: 24.0
+  [OK] rss_poll_interval_seconds: 1800
+
+配置匹配度: 11/11 (100.0%)
+
+================================================================================
+RSS源对比
+================================================================================
+
+[OK] RSS源完全一致 (5 个)
+  - http://rss.jintiankansha.me/rss/GM3DSNZUGJ6DOYTEG5RWENZRGUZDENLDGAYGMMDGMRSTONBRMUYWMM3FMQ2DGYZXMZSTGNDGG4YQ====
+  - https://rss.huxiu.com/
+  - http://rss.jintiankansha.me/rss/GM4DKMRUG56DIYZTHE2TAY3EGNTDAMLGMQZWKMRRGNRWCZBQMY2TSZLEGEYTQN3DMQYDSNZUGQYA====
+  - https://rss.beehiiv.com/feeds/4aF2pGVAEN.xml
+  - https://quanwenrss.com/bloomberg/economics
+
+================================================================================
+数据字段对比
+================================================================================
+
+原系统SGE字段 (14 个):
+  - alert_triggered
+  - both_markets_open
+  - fetched_at
+  - id
+  - london_market_open
+  - london_price_cny_per_g
+  - london_price_usd_per_oz
+  - note
+  - poll_interval_seconds
+  - premium_cny_per_g
+  - raw_payload
+  - shfe_market_open
+  - shfe_price_cny_per_g
+  - usdcny_rate
+
+复刻系统SGE字段 (14 个):
+  - alert_triggered
+  - both_markets_open
+  - fetched_at
+  - id
+  - london_market_open
+  - london_price_cny_per_g
+  - london_price_usd_per_oz
+  - note
+  - poll_interval_seconds
+  - premium_cny_per_g
+  - raw_payload
+  - shfe_market_open
+  - shfe_price_cny_per_g
+  - usdcny_rate
+
+[OK] SGE字段完全一致
+
+原系统反转字段 (11 个):
+  - fetched_at
+  - gold_price_usd_per_oz
+  - id
+  - note
+  - political_signal
+  - price_signal
+  - signal_level
+  - triggered_conditions
+  - us10y_signal
+  - usdcny_rate
+  - war_signal
+
+复刻系统反转字段 (11 个):
+  - fetched_at
+  - gold_price_usd_per_oz
+  - id
+  - note
+  - political_signal
+  - price_signal
+  - signal_level
+  - triggered_conditions
+  - us10y_signal
+  - usdcny_rate
+  - war_signal
+
+[OK] 反转字段完全一致
+
+================================================================================
+对比总结
+================================================================================
+
+1. API结构: [DIFF] 发现3处差异
+2. 配置参数: 11/11 匹配 (100.0%)
+3. RSS源: [OK] 一致
+
+详细报告已保存到: tests/detailed_comparison_report.json

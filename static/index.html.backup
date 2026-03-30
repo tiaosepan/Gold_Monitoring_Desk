@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>黄金监控中台</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <!-- 顶部导航 -->
+        <header class="header">
+            <div class="logo">
+                <h1>黄金监控中台</h1>
+            </div>
+            <nav class="nav">
+                <a href="#" class="nav-item active" data-view="overview">总览</a>
+                <a href="#" class="nav-item" data-view="sge">SGE监控</a>
+                <a href="#" class="nav-item" data-view="reversal">反转警报</a>
+                <a href="#" class="nav-item" data-view="us10y">美债监控</a>
+                <a href="#" class="nav-item" data-view="rss">RSS采集</a>
+                <a href="#" class="nav-item" data-view="system">系统状态</a>
+            </nav>
+        </header>
+
+        <!-- 主内容区 -->
+        <main class="main-content">
+            <!-- 总览页面 -->
+            <div id="overview-view" class="view active">
+                <!-- 状态卡片 -->
+                <div class="status-cards">
+                    <div class="status-card">
+                        <div class="card-title">SGE溢价</div>
+                        <div class="card-value" id="sge-premium">--</div>
+                        <div class="card-subtitle" id="sge-premium-percent">--</div>
+                    </div>
+                    <div class="status-card">
+                        <div class="card-title">国际金价</div>
+                        <div class="card-value" id="international-price">--</div>
+                        <div class="card-subtitle">美元/盎司</div>
+                    </div>
+                    <div class="status-card">
+                        <div class="card-title">美债收益率</div>
+                        <div class="card-value" id="us10y-yield">--</div>
+                        <div class="card-subtitle">10年期</div>
+                    </div>
+                    <div class="status-card">
+                        <div class="card-title">反转等级</div>
+                        <div class="card-value" id="reversal-level">--</div>
+                        <div class="card-subtitle" id="reversal-conditions">--</div>
+                    </div>
+                </div>
+
+                <!-- 图表区域 -->
+                <div class="charts-container">
+                    <div class="chart-box">
+                        <div class="chart-header">
+                            <h3>SGE溢价走势</h3>
+                        </div>
+                        <div id="sge-chart" class="chart"></div>
+                    </div>
+                    <div class="chart-box">
+                        <div class="chart-header">
+                            <h3>美债收益率走势</h3>
+                        </div>
+                        <div id="us10y-chart" class="chart"></div>
+                    </div>
+                </div>
+
+                <!-- RSS事件列表 -->
+                <div class="rss-section">
+                    <div class="rss-column">
+                        <h3>政治事件</h3>
+                        <div id="political-events" class="event-list"></div>
+                    </div>
+                    <div class="rss-column">
+                        <h3>战争事件</h3>
+                        <div id="war-events" class="event-list"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SGE监控页面 -->
+            <div id="sge-view" class="view">
+                <div class="page-header">
+                    <h2>SGE价格监控</h2>
+                    <button class="btn" onclick="refreshSGEData()">刷新数据</button>
+                </div>
+                <div class="chart-box">
+                    <div id="sge-detail-chart" class="chart-large"></div>
+                </div>
+                <div class="table-container">
+                    <table id="sge-table" class="data-table">
+                        <thead>
+                            <tr>
+                                <th>时间</th>
+                                <th>SGE价格</th>
+                                <th>国际金价</th>
+                                <th>汇率</th>
+                                <th>溢价</th>
+                                <th>溢价率</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 反转警报页面 -->
+            <div id="reversal-view" class="view">
+                <div class="page-header">
+                    <h2>反转警报监控</h2>
+                    <button class="btn" onclick="refreshReversalData()">刷新数据</button>
+                </div>
+                <div class="reversal-status">
+                    <div class="reversal-card">
+                        <h3>当前反转等级</h3>
+                        <div class="reversal-level-display" id="current-reversal-level">0</div>
+                    </div>
+                    <div class="reversal-conditions-grid">
+                        <div class="condition-item" id="condition-price">
+                            <div class="condition-icon">💰</div>
+                            <div class="condition-name">价格条件</div>
+                            <div class="condition-status">未满足</div>
+                        </div>
+                        <div class="condition-item" id="condition-political">
+                            <div class="condition-icon">🏛️</div>
+                            <div class="condition-name">政治条件</div>
+                            <div class="condition-status">未满足</div>
+                        </div>
+                        <div class="condition-item" id="condition-war">
+                            <div class="condition-icon">⚔️</div>
+                            <div class="condition-name">战争条件</div>
+                            <div class="condition-status">未满足</div>
+                        </div>
+                        <div class="condition-item" id="condition-us10y">
+                            <div class="condition-icon">📊</div>
+                            <div class="condition-name">美债条件</div>
+                            <div class="condition-status">未满足</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="table-container">
+                    <h3>历史记录</h3>
+                    <table id="reversal-table" class="data-table">
+                        <thead>
+                            <tr>
+                                <th>时间</th>
+                                <th>反转等级</th>
+                                <th>价格</th>
+                                <th>政治</th>
+                                <th>战争</th>
+                                <th>美债</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 美债监控页面 -->
+            <div id="us10y-view" class="view">
+                <div class="page-header">
+                    <h2>美债收益率监控</h2>
+                    <button class="btn" onclick="refreshUS10YData()">刷新数据</button>
+                </div>
+                <div class="chart-box">
+                    <div id="us10y-detail-chart" class="chart-large"></div>
+                </div>
+                <div class="table-container">
+                    <table id="us10y-table" class="data-table">
+                        <thead>
+                            <tr>
+                                <th>时间</th>
+                                <th>收益率(%)</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- RSS采集页面 -->
+            <div id="rss-view" class="view">
+                <div class="page-header">
+                    <h2>RSS事件采集</h2>
+                    <button class="btn" onclick="refreshRSSData()">刷新数据</button>
+                </div>
+                <div class="filter-bar">
+                    <label>
+                        <input type="radio" name="rss-category" value="all" checked> 全部
+                    </label>
+                    <label>
+                        <input type="radio" name="rss-category" value="political"> 政治
+                    </label>
+                    <label>
+                        <input type="radio" name="rss-category" value="war"> 战争
+                    </label>
+                </div>
+                <div class="table-container">
+                    <table id="rss-table" class="data-table">
+                        <thead>
+                            <tr>
+                                <th>时间</th>
+                                <th>标题</th>
+                                <th>分类</th>
+                                <th>评分</th>
+                                <th>来源</th>
+                                <th>链接</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 系统状态页面 -->
+            <div id="system-view" class="view">
+                <div class="page-header">
+                    <h2>系统状态</h2>
+                    <button class="btn" onclick="refreshSystemStatus()">刷新状态</button>
+                </div>
+                <div class="system-status">
+                    <div class="status-section">
+                        <h3>数据源健康状态</h3>
+                        <div id="health-status" class="status-grid"></div>
+                    </div>
+                    <div class="status-section">
+                        <h3>任务调度状态</h3>
+                        <div id="scheduler-status" class="status-grid"></div>
+                    </div>
+                    <div class="status-section">
+                        <h3>最近更新记录</h3>
+                        <div id="update-records" class="update-list"></div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- 底部信息 -->
+        <footer class="footer">
+            <p>黄金监控中台 v1.0.0 | 最后更新: <span id="last-update">--</span></p>
+        </footer>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>

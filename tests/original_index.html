@@ -1,0 +1,791 @@
+  % Total    % Received % Xferd  Average Speed  Time    Time    Time   Current
+                                 Dload  Upload  Total   Spent   Left   Speed
+
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>榛勯噾鐩戞帶涓彴</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <p class="eyebrow">Gold Monitoring Desk</p>
+          <h1>榛勯噾鐩戞帶涓彴</h1>
+          <p class="subtitle">婧环銆佸弽杞€丷SS 鍜屾帹閫侀厤缃粺涓€绠＄悊銆?/p>
+        </div>
+        <nav class="menu">
+          <button class="menu-btn active" data-view="overview">鎬昏</button>
+          <button class="menu-btn" data-view="goldWarning">榛勯噾鍙嶈浆棰勮</button>
+          <div class="menu-sub">
+            <button class="menu-btn sub-menu-btn" data-view="sge">SGE婧环</button>
+            <button class="menu-btn sub-menu-btn" data-view="reversal">鐩橀潰棰勮</button>
+            <button class="menu-btn sub-menu-btn" data-view="us10y">鍗佸勾鏈熺編鍊哄弽杞?/button>
+            <button class="menu-btn sub-menu-btn" data-view="geoWarning">鏀挎不涓庢垬浜夐璀?/button>
+          </div>
+          <button class="menu-btn" data-view="otherWarning">鍏朵粬棰勮</button>
+          <button class="menu-btn" data-view="feeds">RSS 婧?/button>
+          <button class="menu-btn" data-view="push">鎺ㄩ€佽缃?/button>
+          <button class="menu-btn" data-view="system">绯荤粺鐘舵€?/button>
+        </nav>
+        <div class="sidebar-actions">
+          <button id="runAllBtn" class="primary-btn">绔嬪嵆鑾峰彇RSS鍜岀洏闈俊鎭?/button>
+          <button id="runReversalBtn" class="ghost-btn">浠呰窇鍙嶈浆</button>
+          <button id="refreshBtn" class="ghost-btn">鍒锋柊椤甸潰</button>
+        </div>
+      </aside>
+
+      <main class="content">
+        <section class="hero">
+          <div>
+            <p class="eyebrow">Shanghai vs London + Reversal Engine</p>
+            <h2 id="heroTitle">鎬昏</h2>
+            <p id="heroDesc" class="hero-copy">鍚屾椂鏌ョ湅 SGE 婧环銆侀粍閲戝弽杞瓑绾с€丷SS 鍛戒腑鍜屾帹閫佺姸鎬併€?/p>
+          </div>
+          <div class="hero-meta">
+            <div class="hero-tools">
+              <span class="version-pill">鐗堟湰 <strong id="appVersionText">0.2</strong></span>
+              <button id="updateLogBtn" class="ghost-btn">鏇存柊璁板綍</button>
+            </div>
+            <div class="hero-pill">
+              <span>浠诲姟鐘舵€?/span>
+              <strong id="schedulerBadge">绛夊緟鍒濆鍖?/strong>
+            </div>
+            <div class="hero-pill">
+              <span>涓嬫鎵ц</span>
+              <strong id="nextRunText">--</strong>
+            </div>
+          </div>
+        </section>
+
+        <section class="view active" data-view-panel="overview">
+          <div class="stats-grid">
+            <article class="panel stat-card">
+              <span class="label">鏈€鏂版孩浠?/span>
+              <strong id="overviewPremiumValue">--</strong>
+              <span id="overviewPremiumMeta" class="muted">绛夊緟鏁版嵁</span>
+            </article>
+            <article class="panel stat-card">
+              <span class="label">鍙嶈浆绛夌骇</span>
+              <strong id="overviewSignalValue">--</strong>
+              <span id="overviewSignalMeta" class="muted">绛夊緟鏁版嵁</span>
+            </article>
+            <article class="panel stat-card">
+              <span class="label">瑙﹀彂鏉′欢</span>
+              <strong id="overviewConditionsValue">--</strong>
+              <span id="overviewConditionsMeta" class="muted">price / political / war / us10y</span>
+            </article>
+            <article class="panel stat-card">
+              <span class="label">娲昏穬 RSS 婧?/span>
+              <strong id="overviewFeedCount">0</strong>
+              <span id="overviewFeedMeta" class="muted">绛夊緟閰嶇疆</span>
+            </article>
+            <article class="panel stat-card">
+              <span class="label">鎺ㄩ€佺粍</span>
+              <strong id="overviewTargetCount">0</strong>
+              <span id="overviewTargetMeta" class="muted">鏈厤缃?/span>
+            </article>
+            <article class="panel stat-card">
+              <span class="label">鏈€杩?RSS 鎶撳彇</span>
+              <strong id="overviewRssValue">--</strong>
+              <span id="overviewRssMeta" class="muted">绛夊緟鎶撳彇</span>
+            </article>
+          </div>
+
+          <div class="grid two-col">
+            <article class="panel chart-panel">
+              <div class="panel-head">
+                <div>
+                  <h3>SGE 婧环璧板娍</h3>
+                  <p class="muted">浜烘皯甯侀噾浠枫€佸浗闄呴噾鎶樼畻涓庢孩浠锋洸绾?/p>
+                </div>
+                <div class="range-switch">
+                  <button data-chart="sge" data-range="1H" class="range-btn">1H</button>
+                  <button data-chart="sge" data-range="1D" class="range-btn active">1D</button>
+                  <button data-chart="sge" data-range="1W" class="range-btn">1W</button>
+                </div>
+              </div>
+              <div id="sgeChart" class="chart large"></div>
+            </article>
+
+            <article class="panel chart-panel">
+              <div class="panel-head">
+                <div>
+                  <h3>榛勯噾鍙嶈浆鐩戞帶</h3>
+                  <p class="muted">鐜拌揣閲戜环鏍间笌涓夌骇淇″彿绛夌骇</p>
+                </div>
+                <div class="panel-actions">
+                  <div class="range-switch">
+                    <button data-chart="reversal" data-range="1H" class="range-btn">1H</button>
+                    <button data-chart="reversal" data-range="1D" class="range-btn active">1D</button>
+                    <button data-chart="reversal" data-range="1W" class="range-btn">1W</button>
+                  </div>
+                  <div id="signalBadge" class="signal-pill level-0">鏃犱俊鍙?/div>
+                </div>
+              </div>
+              <div id="reversalChart" class="chart large"></div>
+            </article>
+          </div>
+
+          <div class="grid two-col">
+            <article class="panel">
+              <div class="panel-head">
+                <h3>鏈€杩戦璀?/h3>
+                <span class="muted">SGE 涓庨粍閲戝弽杞垎寮€璁板綍</span>
+              </div>
+              <div class="subsection">
+                <h4>SGE 棰勮</h4>
+                <div class="table-wrap compact">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>鏃堕棿</th>
+                        <th>婧环</th>
+                        <th>缁撴灉</th>
+                      </tr>
+                    </thead>
+                    <tbody id="overviewSgeAlerts"></tbody>
+                  </table>
+                </div>
+                <div id="overviewSgeAlertsPager" class="pager"></div>
+              </div>
+              <div class="subsection">
+                <h4>鍙嶈浆棰勮</h4>
+                <div class="table-wrap compact">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>鏃堕棿</th>
+                        <th>绛夌骇</th>
+                        <th>鏉′欢</th>
+                        <th>缁撴灉</th>
+                      </tr>
+                    </thead>
+                    <tbody id="overviewReversalAlerts"></tbody>
+                  </table>
+                </div>
+                <div id="overviewReversalAlertsPager" class="pager"></div>
+              </div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-head">
+                <h3>RSS 鍛戒腑鍒嗙被</h3>
+                <span class="muted">鍙睍绀哄懡涓弽杞笂涓嬫枃鐨勫唴瀹?/span>
+              </div>
+              <div class="rss-filter">
+                <button class="filter-btn active" data-event-filter="all">鍏ㄩ儴</button>
+                <button class="filter-btn" data-event-filter="political">鏀挎不缂撳拰</button>
+                <button class="filter-btn" data-event-filter="war">鎴樹簤杩涘害</button>
+              </div>
+              <div id="overviewEvents" class="event-list"></div>
+              <div id="overviewEventsPager" class="pager"></div>
+            </article>
+          </div>
+        </section>
+
+        <section class="view" data-view-panel="otherWarning">
+          <article class="panel" style="padding:20px;">
+            <h3 style="margin:0 0 8px;">鍏朵粬棰勮</h3>
+            <p class="muted" style="margin:0;">棰勭暀妯″潡锛屽悗缁彲缁х画鎵╁睍銆?/p>
+          </article>
+        </section>
+
+        <section class="view" data-view-panel="sge">
+          <div class="grid layout-3-2">
+            <article class="panel chart-panel">
+              <div class="panel-head">
+                <div>
+                  <h3>SGE 婧环鍥捐〃</h3>
+                  <p class="muted">鐢ㄤ簬鐪嬬洏鍜岀‘璁や汉姘戝竵閲戠浉瀵瑰浗闄呴噾鐨勬孩浠风幆澧?/p>
+                </div>
+                <div class="range-switch">
+                  <button data-chart="sge" data-range="1H" class="range-btn">1H</button>
+                  <button data-chart="sge" data-range="1D" class="range-btn active">1D</button>
+                  <button data-chart="sge" data-range="1W" class="range-btn">1W</button>
+                </div>
+              </div>
+              <div id="sgeDetailChart" class="chart xlarge"></div>
+            </article>
+
+            <article class="panel form-panel">
+              <div class="panel-head">
+                <div>
+                  <h3>SGE 鍙傛暟</h3>
+                  <p class="muted">鍙奖鍝嶆孩浠风洃鎺э紝涓嶆敼 RSS 鍜屾帹閫佺粍</p>
+                </div>
+              </div>
+              <form id="sgeSettingsForm" class="settings-form">
+                <label>
+                  <span>婧环闃堝€?(鍏?鍏?</span>
+                  <input id="thresholdInput" type="number" step="0.1" min="0" />
+                </label>
+                <label>
+                  <span>涓昏疆璇㈤鐜?(绉?</span>
+                  <input id="intervalInput" type="number" min="5" />
+                </label>
+                <label>
+                  <span>SGE 棰勮鍐峰嵈 (绉?</span>
+                  <input id="cooldownInput" type="number" min="0" />
+                </label>
+                <label>
+                  <span>璇锋眰瓒呮椂 (绉?</span>
+                  <input id="timeoutInput" type="number" step="0.5" min="1" />
+                </label>
+                <button type="submit" class="primary-btn">淇濆瓨 SGE 璁剧疆</button>
+              </form>
+            </article>
+          </div>
+
+          <div class="grid two-col">
+            <article class="panel">
+              <div class="panel-head">
+                <h3>鏈€杩戞孩浠疯褰?/h3>
+                <span class="muted">鏈悓鏃跺紑鐩樻椂浼氳烦杩囧憡璀?/span>
+              </div>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>鏃堕棿</th>
+                      <th>浜烘皯甯侀噾浠?/th>
+                      <th>鍥介檯閲戞姌绠?/th>
+                      <th>婧环</th>
+                      <th>鐘舵€?/th>
+                    </tr>
+                  </thead>
+                  <tbody id="samplesBody"></tbody>
+                </table>
+              </div>
+              <div id="samplesPager" class="pager"></div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-head">
+                <h3>鏈€杩?SGE 棰勮</h3>
+                <span class="muted">鍙湁瓒呰繃闃堝€兼墠鎺ㄩ€?/span>
+              </div>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>鏃堕棿</th>
+                      <th>婧环</th>
+                      <th>闃堝€?/th>
+                      <th>缁撴灉</th>
+                    </tr>
+                  </thead>
+                  <tbody id="alertsBody"></tbody>
+                </table>
+              </div>
+              <div id="alertsPager" class="pager"></div>
+            </article>
+          </div>
+        </section>
+
+        <section class="view" data-view-panel="reversal">
+          <div class="stats-grid reversal-grid">
+            <article class="panel stat-card">
+              <span class="label">鏈€鏂板弽杞瓑绾?/span>
+              <strong id="reversalLevelValue">鏃犱俊鍙?/strong>
+              <span id="reversalLevelMeta" class="muted">绛夊緟鏁版嵁</span>
+            </article>
+            <article class="panel stat-card">
+              <span class="label">鐜拌揣閲?/span>
+              <strong id="reversalGoldValue">--</strong>
+              <span class="muted">缇庡厓 / 鐩庡徃</span>
+            </article>
+            <article class="panel stat-card">
+              <span class="label">USDCNY</span>
+              <strong id="reversalFxValue">--</strong>
+              <span class="muted">姹囩巼</span>
+            </article>
+            <article class="panel stat-card">
+              <span class="label">瑙﹀彂鏉′欢</span>
+              <strong id="reversalConditionsValue">--</strong>
+              <span class="muted">price / political / war</span>
+            </article>
+          </div>
+
+          <div class="grid layout-3-2">
+            <article class="panel chart-panel">
+              <div class="panel-head">
+                <div>
+                  <h3>鍙嶈浆鍥捐〃</h3>
+                  <p class="muted">涓婃柟鐪嬩环鏍硷紝涓嬫柟鐪?0 / 4 / 3 / 2 / 1 绾т俊鍙?/p>
+                </div>
+                <div class="panel-actions">
+                  <div class="range-switch">
+                    <button data-chart="reversal" data-range="1H" class="range-btn">1H</button>
+                    <button data-chart="reversal" data-range="1D" class="range-btn active">1D</button>
+                    <button data-chart="reversal" data-range="1W" class="range-btn">1W</button>
+                  </div>
+                  <button id="testAlertBtn" class="ghost-btn">鍙戦€佹祴璇曟帹閫?/button>
+                </div>
+              </div>
+              <div id="reversalDetailChart" class="chart xlarge"></div>
+            </article>
+
+            <article class="panel form-panel">
+              <div class="panel-head">
+                <div>
+                  <h3>鍙嶈浆鍙傛暟</h3>
+                  <p class="muted">鐩橀潰銆丷SS 鍜屾帹閫佸彧鍦ㄥ嚭鐜颁俊鍙锋椂瑙﹀彂</p>
+                </div>
+              </div>
+              <form id="reversalSettingsForm" class="settings-form">
+                <label>
+                  <span>鍙嶈浆淇″彿鍐峰嵈 (绉?</span>
+                  <input id="reversalCooldownInput" type="number" min="0" />
+                </label>
+                <label>
+                  <span>鐩橀潰鍥炵湅绐楀彛 (鍒嗛挓)</span>
+                  <input id="reversalLookbackInput" type="number" min="30" />
+                </label>
+                <label>
+                  <span>鏈€灏忓弽寮瑰箙搴?(%)</span>
+                  <input id="reversalReboundInput" type="number" step="0.1" min="0.1" />
+                </label>
+                <label>
+                  <span>鐭潎绾跨獥鍙?(鏍锋湰鏁?</span>
+                  <input id="reversalMaInput" type="number" min="3" />
+                </label>
+                <label>
+                  <span>浜嬩欢鏈夋晥鏈?(鍒嗛挓)</span>
+                  <input id="reversalSignalWindowInput" type="number" min="15" />
+                </label>
+                <div class="inline-form">
+                  <label>
+                    <span>娴嬭瘯淇″彿绛夌骇</span>
+                    <select id="testAlertLevel">
+                      <option value="4">鍥涚骇</option>
+                      <option value="3">涓夌骇</option>
+                      <option value="2">浜岀骇</option>
+                      <option value="1">涓€绾?/option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>娴嬭瘯璇存槑</span>
+                    <input id="testAlertNote" type="text" placeholder="鍙€? />
+                  </label>
+                </div>
+                <button type="submit" class="primary-btn">淇濆瓨鍙嶈浆璁剧疆</button>
+              </form>
+            </article>
+          </div>
+
+          <div class="grid two-col">
+            <article class="panel">
+              <div class="panel-head">
+                <h3>鏈€杩戝弽杞牱鏈?/h3>
+                <span class="muted">绛夌骇: 1 鏈€寮猴紝4 鏈€寮憋紝0 涓烘棤淇″彿</span>
+              </div>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>鏃堕棿</th>
+                      <th>閲戜环</th>
+                      <th>绛夌骇</th>
+                      <th>鏉′欢</th>
+                      <th>璇存槑</th>
+                    </tr>
+                  </thead>
+                  <tbody id="reversalSamplesBody"></tbody>
+                </table>
+              </div>
+              <div id="reversalSamplesPager" class="pager"></div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-head">
+                <h3>鏈€杩戝弽杞璀?/h3>
+                <span class="muted">浠呯瓑绾?1 / 2 浼氭帹閫侊紝3 / 4 绾у彧璁板綍</span>
+              </div>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>鏃堕棿</th>
+                      <th>绛夌骇</th>
+                      <th>鏉′欢</th>
+                      <th>缁撴灉</th>
+                    </tr>
+                  </thead>
+                  <tbody id="reversalAlertsBody"></tbody>
+                </table>
+              </div>
+              <div id="reversalAlertsPager" class="pager"></div>
+            </article>
+          </div>
+        </section>
+
+        <section class="view" data-view-panel="us10y">
+          <div class="stats-grid reversal-grid">
+            <article class="panel stat-card">
+              <span class="label">鍗佸勾鏈熷弽杞俊鍙?/span>
+              <strong id="us10ySignalValue">鏃犱俊鍙?/strong>
+              <span id="us10ySignalMeta" class="muted">绛夊緟鏁版嵁</span>
+            </article>
+            <article class="panel stat-card">
+              <span class="label">10Y 鏀剁泭鐜?/span>
+              <strong id="us10yYieldValue">--</strong>
+              <span class="muted">%</span>
+            </article>
+            <article class="panel stat-card">
+              <span class="label">鏁版嵁婧?/span>
+              <strong id="us10ySourceValue">--</strong>
+              <span id="us10ySourceMeta" class="muted">绛夊緟鏁版嵁</span>
+            </article>
+            <article class="panel stat-card">
+              <span class="label">涓庨粍閲戣仈鍔?/span>
+              <strong id="us10yLinkValue">--</strong>
+              <span class="muted">鍚屽睆瑙傚療閲戜环涓?0Y</span>
+            </article>
+          </div>
+          <article class="panel chart-panel">
+            <div class="panel-head">
+              <div>
+                <h3>榛勯噾涓?0Y鑱斿姩鍒嗘瀽</h3>
+                <p class="muted">宸﹁酱榛勯噾浠锋牸锛屽彸杞寸編鍊烘敹鐩婄巼锛堟敮鎸佺旱杞存粴杞缉鏀撅級</p>
+              </div>
+              <div class="range-switch">
+                <button data-chart="us10y" data-range="1H" class="range-btn">1H</button>
+                <button data-chart="us10y" data-range="1D" class="range-btn active">1D</button>
+                <button data-chart="us10y" data-range="1W" class="range-btn">1W</button>
+              </div>
+            </div>
+            <div id="us10yLinkChart" class="chart xlarge"></div>
+          </article>
+          <article class="panel form-panel">
+            <div class="panel-head">
+              <div>
+                <h3>缇庡€洪璀﹀弬鏁?/h3>
+                <p class="muted">鏀寔澶氭湡闄愰噰鏍蜂笌鍥炶惤闃堝€艰缃?/p>
+              </div>
+            </div>
+            <form id="us10ySettingsForm" class="settings-form">
+              <label>
+                <span>閲囨牱棰戠巼 (绉?</span>
+                <input id="us10yPollIntervalInput" type="number" min="5" />
+              </label>
+              <label>
+                <span>鍥炶惤绐楀彛 (灏忔椂)</span>
+                <input id="us10yDropLookbackHoursInput" type="number" min="1" step="1" />
+              </label>
+              <label>
+                <span>鍥炶惤闃堝€?(bp)</span>
+                <input id="us10yDropThresholdBpInput" type="number" min="0.1" step="0.1" />
+              </label>
+              <div class="inline-form">
+                <label class="toggle-field">
+                  <span>5Y</span>
+                  <input id="us10yTenor5" type="checkbox" />
+                </label>
+                <label class="toggle-field">
+                  <span>10Y</span>
+                  <input id="us10yTenor10" type="checkbox" checked />
+                </label>
+                <label class="toggle-field">
+                  <span>20Y</span>
+                  <input id="us10yTenor20" type="checkbox" />
+                </label>
+              </div>
+              <div class="panel-actions">
+                <button id="runUs10yBtn" type="button" class="ghost-btn">绔嬪嵆閲囨牱缇庡€?/button>
+                <button type="submit" class="primary-btn">淇濆瓨缇庡€鸿缃?/button>
+              </div>
+            </form>
+          </article>
+          <div class="grid two-col">
+            <article class="panel">
+              <div class="panel-head">
+                <h3>鏈€杩?0Y鏍锋湰</h3>
+                <span class="muted">鐙珛鏁版嵁婧愮淮鎶?/span>
+              </div>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>鏃堕棿</th>
+                      <th>鏈熼檺</th>
+                      <th>鏀剁泭鐜?</th>
+                      <th>淇″彿</th>
+                      <th>璇存槑</th>
+                    </tr>
+                  </thead>
+                  <tbody id="us10ySamplesBody"></tbody>
+                </table>
+              </div>
+              <div id="us10ySamplesPager" class="pager"></div>
+            </article>
+            <article class="panel">
+              <div class="panel-head">
+                <h3>10Y杩愯璁板綍</h3>
+                <span class="muted">鎶撳彇涓庤绠楄€楁椂</span>
+              </div>
+              <ul id="us10yRunsList" class="mini-list roomy"></ul>
+              <div id="us10yRunsPager" class="pager"></div>
+            </article>
+          </div>
+        </section>
+
+        <section class="view" data-view-panel="geoWarning">
+          <article class="panel">
+            <div class="panel-head">
+              <div>
+                <h3>鏀挎不涓庢垬浜変簨浠舵祦</h3>
+                <p class="muted">澶嶇敤 RSS 浜嬩欢娴侊紝骞舵寜 1-10 鍒嗗浜嬩欢鐩稿叧鎬ф墦鍒嗭紙鍒嗚秺楂橈紝瓒婃湁鍒╅粍閲戜笂娑ㄥ姩鑳斤紱鍒嗚秺浣庯紝榛勯噾瓒婃壙鍘嬶級</p>
+              </div>
+              <div class="rss-filter">
+                <button class="filter-btn active" data-event-filter="all">鍏ㄩ儴</button>
+                <button class="filter-btn" data-event-filter="political">鏀挎不缂撳拰</button>
+                <button class="filter-btn" data-event-filter="war">鎴樹簤杩涘害</button>
+              </div>
+            </div>
+            <div class="subsection" style="padding-top:0;">
+              <p class="muted" style="margin:0 20px 8px;">璇存槑锛氬垎瓒婇珮锛岃秺鏈夊埄榛勯噾涓婃定鍔ㄨ兘锛涘垎瓒婁綆锛岄粍閲戣秺鎵垮帇銆?/p>
+            </div>
+            <div id="geoEventList" class="event-list spacious"></div>
+            <div id="geoEventsPager" class="pager"></div>
+          </article>
+        </section>
+
+        <section class="view" data-view-panel="feeds">
+          <div class="grid layout-2-3">
+            <article class="panel form-panel">
+              <div class="panel-head">
+                <div>
+                  <h3>RSS 婧愰厤缃?/h3>
+                  <p class="muted">鍙鍒犳簮鍦板潃锛屽畾鏃舵姄鍙栧悗鎸変簨浠剁被鍨嬪垎绫诲睍绀?/p>
+                </div>
+                <div class="panel-actions">
+                  <button id="fetchRssBtn" type="button" class="ghost-btn">绔嬪嵆鑾峰彇RSS娑堟伅</button>
+                  <button id="addFeedBtn" type="button" class="ghost-btn">鏂板 RSS 婧?/button>
+                </div>
+              </div>
+              <form id="feedSettingsForm" class="settings-form">
+                <label>
+                  <span>RSS 鐩戞帶棰戠巼 (绉?</span>
+                  <input id="rssIntervalInput" type="number" min="30" />
+                </label>
+                <div id="feedRows" class="stack-list"></div>
+                <button type="submit" class="primary-btn">淇濆瓨 RSS 閰嶇疆</button>
+              </form>
+            </article>
+
+            <article class="panel">
+              <div class="panel-head">
+                <div>
+                  <h3>RSS 浜嬩欢娴?/h3>
+                  <p class="muted">鎸夋斂娌荤紦鍜?/ 鎴樹簤杩涘害鍒嗙被锛屾爣棰樺拰鎽樿宸插敖閲忚浆涓枃</p>
+                </div>
+                <div class="rss-filter">
+                  <button class="filter-btn active" data-event-filter="all">鍏ㄩ儴</button>
+                  <button class="filter-btn" data-event-filter="political">鏀挎不缂撳拰</button>
+                  <button class="filter-btn" data-event-filter="war">鎴樹簤杩涘害</button>
+                </div>
+              </div>
+              <div id="feedEventList" class="event-list spacious"></div>
+              <div id="feedEventsPager" class="pager"></div>
+            </article>
+          </div>
+
+          <div class="grid two-col">
+            <article class="panel">
+              <div class="panel-head">
+                <h3>RSS 鎶撳彇璁板綍</h3>
+                <span class="muted">鍗曠嫭璁板綍 RSS 杞銆佽€楁椂鍜屽紓甯告暟</span>
+              </div>
+              <ul id="rssFetchRunsList" class="mini-list roomy"></ul>
+              <div id="rssFetchRunsPager" class="pager"></div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-head">
+                <h3>鍛戒腑鍏抽敭璇?/h3>
+                <span class="muted">甯姪纭浜嬩欢涓轰粈涔堣褰掔被</span>
+              </div>
+              <div id="eventKeywordList" class="keyword-board"></div>
+            </article>
+          </div>
+        </section>
+
+        <section class="view" data-view-panel="push">
+          <div class="grid layout-2-3">
+            <article class="panel form-panel">
+              <div class="panel-head">
+                <div>
+                  <h3>鎺ㄩ€佺粍閰嶇疆</h3>
+                  <p class="muted">姣忕粍鐢?webhook + secret 缁勬垚锛屽彲鍚仠銆佸彲澧炲垹</p>
+                </div>
+                <button id="addTargetBtn" type="button" class="ghost-btn">鏂板鎺ㄩ€佺粍</button>
+              </div>
+              <form id="notificationSettingsForm" class="settings-form">
+                <div id="targetRows" class="stack-list"></div>
+                <button type="submit" class="primary-btn">淇濆瓨鎺ㄩ€佽缃?/button>
+              </form>
+            </article>
+
+            <article class="panel">
+              <div class="panel-head">
+                <div>
+                  <h3>鎺ㄩ€佽鏄?/h3>
+                  <p class="muted">绋嬪簭鍙帹閫?1 / 2 绾у弽杞俊鍙凤紝3 / 4 绾у彧璁板綍涓嶆帹閫?/p>
+                </div>
+              </div>
+              <div class="notice-stack">
+                <div class="notice-card level-1">
+                  <strong>涓€绾у弽杞?/strong>
+                  <span>price + political + war + us10y 鍚屾椂鍛戒腑锛屼紭鍏堢骇鏈€楂樸€?/span>
+                </div>
+                <div class="notice-card level-2">
+                  <strong>浜岀骇鍙嶈浆</strong>
+                  <span>鍥涚被鏉′欢涓懡涓笁绫伙紝璇存槑鍏辨尟杈冨己銆?/span>
+                </div>
+                <div class="notice-card level-3">
+                  <strong>涓夌骇鍙嶈浆</strong>
+                  <span>鍥涚被鏉′欢涓懡涓袱绫伙紝鐢ㄤ簬鎻愮ず瑙傚療銆?/span>
+                </div>
+                <div class="notice-card level-4">
+                  <strong>鍥涚骇鍙嶈浆</strong>
+                  <span>鍥涚被鏉′欢涓粎鍛戒腑涓€绫伙紝浠呰褰曚笉鎺ㄩ€併€?/span>
+                </div>
+                <div class="notice-card level-0">
+                  <strong>鏃犱俊鍙?/strong>
+                  <span>浠呰褰曪紝涓嶈Е鍙戞帹閫併€?/span>
+                </div>
+              </div>
+            </article>
+          </div>
+          <article class="panel">
+            <div class="panel-head">
+              <h3>鎺ㄩ€佽褰?/h3>
+              <span class="muted">璁板綍姣忔鎺ㄩ€佺洰鏍囥€佺粨鏋滃拰娑堟伅鍐呭</span>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>鏃堕棿</th>
+                    <th>绫诲瀷</th>
+                    <th>鐩爣</th>
+                    <th>缁撴灉</th>
+                    <th>鍐呭</th>
+                  </tr>
+                </thead>
+                <tbody id="notificationLogsBody"></tbody>
+              </table>
+            </div>
+            <div id="notificationLogsPager" class="pager"></div>
+          </article>
+        </section>
+
+        <section class="view" data-view-panel="system">
+          <div class="stats-grid system-grid">
+            <article class="panel stat-card">
+              <span class="label">SGE 褰撳墠鐘舵€?/span>
+              <strong id="systemSgeState">--</strong>
+              <span id="systemSgeMeta" class="muted">绛夊緟鏁版嵁</span>
+            </article>
+            <article class="panel stat-card">
+              <span class="label">榛勯噾鐩橀潰鐘舵€?/span>
+  0      0   0      0   0      0      0      0                              0
+              <strong id="systemReversalState">--</strong>
+              <span id="systemReversalMeta" class="muted">绛夊緟鏁版嵁</span>
+            </article>
+            <article class="panel stat-card">
+              <span class="label">RSS 鐘舵€?/span>
+              <strong id="systemRssState">--</strong>
+              <span id="systemRssMeta" class="muted">绛夊緟鏁版嵁</span>
+            </article>
+          </div>
+
+          <div class="grid two-col">
+            <article class="panel">
+              <div class="panel-head">
+                <h3>SGE 鎶撳彇璁板綍</h3>
+                <span class="muted">鍒嗛〉灞曠ず鍘嗗彶璁板綍锛屽綋鍓嶇姸鎬佷互涓婃柟鐘舵€佸崱涓哄噯</span>
+              </div>
+              <ul id="fetchRunsList" class="mini-list roomy"></ul>
+              <div id="fetchRunsPager" class="pager"></div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-head">
+                <h3>鍙嶈浆杩愯璁板綍</h3>
+                <span class="muted">鍒嗛〉灞曠ず鍘嗗彶璁板綍锛屽綋鍓嶇姸鎬佷互涓婃柟鐘舵€佸崱涓哄噯</span>
+              </div>
+              <ul id="reversalRunsList" class="mini-list roomy"></ul>
+              <div id="reversalRunsPager" class="pager"></div>
+            </article>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <div id="updateLogModal" class="update-log-modal hidden" role="dialog" aria-modal="true" aria-labelledby="updateLogTitle">
+      <div class="update-log-backdrop" data-close-update-log></div>
+      <section class="update-log-panel">
+        <header class="update-log-head">
+          <h3 id="updateLogTitle">鏇存柊璁板綍</h3>
+          <button id="closeUpdateLogBtn" class="text-btn" type="button">鍏抽棴</button>
+        </header>
+        <div class="update-log-actions">
+          <button id="addUpdateLogEntryBtn" class="primary-btn" type="button">鏂板璁板綍</button>
+          <button id="clearUpdateLogBtn" class="ghost-btn" type="button">娓呯┖璁板綍</button>
+        </div>
+        <div id="updateLogList" class="update-log-list"></div>
+      </section>
+    </div>
+
+    <template id="feedRowTemplate">
+      <div class="editor-row">
+        <div class="editor-head">
+          <strong>RSS 婧?/strong>
+          <button type="button" class="text-btn remove-feed-btn">鍒犻櫎</button>
+        </div>
+        <label>
+          <span>鍦板潃</span>
+          <input type="url" class="feed-url-input" placeholder="https://example.com/feed.xml" />
+        </label>
+      </div>
+    </template>
+
+    <template id="targetRowTemplate">
+      <div class="editor-row">
+        <div class="editor-head">
+          <strong>鎺ㄩ€佺粍</strong>
+          <button type="button" class="text-btn remove-target-btn">鍒犻櫎</button>
+        </div>
+        <div class="inline-form">
+          <label>
+100  33498 100  33498   0      0 169.6k      0                              0
+100  33498 100  33498   0      0 169.5k      0                              0
+100  33498 100  33498   0      0 169.4k      0                              0
+            <span>鍚嶇О</span>
+            <input type="text" class="target-name-input" placeholder="榛樿鏈哄櫒浜? />
+          </label>
+          <label class="toggle-field">
+            <span>鍚敤</span>
+            <input type="checkbox" class="target-enabled-input" checked />
+          </label>
+        </div>
+        <label>
+          <span>Webhook</span>
+          <input type="url" class="target-webhook-input" placeholder="https://oapi.dingtalk.com/robot/send?access_token=..." />
+        </label>
+        <label>
+          <span>Secret</span>
+          <input type="password" class="target-secret-input" placeholder="SEC..." />
+        </label>
+      </div>
+    </template>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>

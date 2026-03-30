@@ -1,0 +1,18 @@
+{
+  "timestamp": "2026-03-25T12:47:00.608933",
+  "structure_differences": [
+    "root.us10y_reversal.recent_runs[0].error_message: 类型不同 (NoneType vs str)",
+    "root.us10y_reversal.latest_samples: 复刻系统缺少键 {'10y'}",
+    "root.us10y_reversal.latest_sample: 类型不同 (dict vs NoneType)"
+  ],
+  "config_comparison": {
+    "matches": 11,
+    "total": 11,
+    "match_rate": 1.0
+  },
+  "rss_comparison": {
+    "original_count": 5,
+    "replica_count": 5,
+    "match": true
+  }
+}
