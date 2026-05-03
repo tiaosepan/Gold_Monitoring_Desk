@@ -42,6 +42,9 @@ logs/
 .env.local
 .env.*.local
 
+# 后端进程锁（运行时生成，勿提交）
+backend/backend.lock
+
 # 临时文件
 *.tmp
 *.bak
