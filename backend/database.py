@@ -268,23 +268,12 @@ def init_database():
             ]
             db.add_all(rss_sources)
             
-            # 插入推送目标
-            push_target = PushTarget(
-                name='钉钉机器人-主群',
-                type='dingtalk',
-                webhook_url='https://oapi.dingtalk.com/robot/send?access_token=YOUR_TOKEN',
-                secret='YOUR_SECRET',
-                is_active=1
-            )
-            db.add(push_target)
-            
             # 插入数据源健康记录
             health_records = [
                 DataSourceHealth(source_name='Gold-API', status='unknown'),
                 DataSourceHealth(source_name='Sina Finance API', status='unknown'),
                 DataSourceHealth(source_name='Sina Finance API - 沪金汇率', status='unknown'),
                 DataSourceHealth(source_name='RSS Sources', status='unknown'),
-                DataSourceHealth(source_name='DingTalk Push', status='unknown'),
             ]
             db.add_all(health_records)
             

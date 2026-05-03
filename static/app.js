@@ -8,7 +8,6 @@ const state = {
   status: null,
   reversalStatus: null,
   us10yStatus: null,
-  notificationLogs: [],
   sgeHistory: [],
   reversalHistory: [],
   us10yHistory: [],
@@ -293,7 +292,6 @@ const pageSizes = {
   reversalAlerts: 6,
   feedEvents: 5,
   rssFetchRuns: 6,
-  notificationLogs: 6,
   fetchRuns: 6,
   reversalRuns: 6,
   us10ySamples: 8,
@@ -304,7 +302,7 @@ const pageSizes = {
 const viewMeta = {
   overview: {
     title: "\u603b\u89c8",
-    desc: "\u540c\u65f6\u67e5\u770b SGE \u6ea2\u4ef7\u3001\u9ec4\u91d1\u53cd\u8f6c\u7b49\u7ea7\u3001RSS \u547d\u4e2d\u548c\u63a8\u9001\u72b6\u6001\u3002",
+    desc: "\u540c\u65f6\u67e5\u770b SGE \u6ea2\u4ef7\u3001\u9ec4\u91d1\u53cd\u8f6c\u7b49\u7ea7\u4e0e RSS \u547d\u4e2d\u3002",
   },
   goldWarning: {
     title: "\u9ec4\u91d1\u53cd\u8f6c\u9884\u8b66",
@@ -333,10 +331,6 @@ const viewMeta = {
   feeds: {
     title: "RSS \u6e90",
     desc: "\u914d\u7f6e\u65b0\u95fb\u6e90\u5e76\u67e5\u770b\u4e8b\u4ef6\u5206\u7c7b\u548c\u6293\u53d6\u8d28\u91cf\u3002",
-  },
-  push: {
-    title: "\u63a8\u9001\u8bbe\u7f6e",
-    desc: "\u7ba1\u7406 webhook + secret \u63a8\u9001\u76ee\u6807\u5e76\u8bb0\u5f55\u63a8\u9001\u7ed3\u679c\u3002",
   },
   system: {
     title: "\u7cfb\u7edf\u72b6\u6001",
@@ -433,11 +427,6 @@ function formatLevel(level) {
 
 function levelClass(level) {
   return `level-${level ?? 0}`;
-}
-
-function getActiveTargets(settings = {}) {
-  const targets = settings.notification_targets || [];
-  return targets.filter((item) => item.enabled);
 }
 
 function setText(id, text) {
@@ -568,26 +557,17 @@ async function fetchJson(url, options = {}) {
   return res.json();
 }
 
-async function fetchJsonOptional(url, options = {}, fallback = {}) {
-  try {
-    return await fetchJson(url, options);
-  } catch (error) {
-    return fallback;
-  }
-}
-
 async function refreshAll() {
   showLoading('refreshAll');
   
   try {
-    const [status, sgeHistory, reversalStatus, reversalHistory, us10yStatus, us10yHistory, notificationLogs] = await Promise.all([
+    const [status, sgeHistory, reversalStatus, reversalHistory, us10yStatus, us10yHistory] = await Promise.all([
       fetchJson("/api/status"),
       fetchJson(`/api/history?range=${state.sgeRange}`),
       fetchJson("/api/reversal/status"),
       fetchJson(`/api/reversal/history?range=${state.reversalRange}`),
       fetchJson("/api/us10y/status"),
       fetchJson(`/api/us10y/history?range=${state.us10yRange}`),
-      fetchJsonOptional("/api/notification/logs?limit=120", {}, { items: [] }),
     ]);
     state.status = status;
   state.reversalStatus = reversalStatus;
@@ -595,7 +575,6 @@ async function refreshAll() {
   state.sgeHistory = sgeHistory.items || [];
   state.reversalHistory = reversalHistory.items || [];
   state.us10yHistory = us10yHistory.items || [];
-  state.notificationLogs = notificationLogs.items || [];
   renderAll();
   } catch (error) {
     console.error('数据刷新失败:', error);
@@ -611,7 +590,6 @@ function renderAll() {
   const marketState = state.status.market_state || {};
   const reversalLatest = state.reversalStatus.latest_sample;
   const latest = state.status.latest_sample;
-  const activeTargets = getActiveTargets(settings);
   const rssRuns = state.reversalStatus.recent_rss_fetch_runs || [];
   const lastRssRun = rssRuns[0];
   const us10yTenors = settings.us10y_tenors || ["10y"];
@@ -630,8 +608,8 @@ function renderAll() {
   const activeFeedsCount = (settings.rss_feed_sources || []).filter(f => f.enabled !== false).length;
   setText("overviewFeedCount", String(activeFeedsCount));
   setText("overviewFeedMeta", `RSS \u9891\u7387 ${settings.rss_poll_interval_seconds ?? "--"} \u79d2`);
-  setText("overviewTargetCount", String(activeTargets.length));
-  setText("overviewTargetMeta", activeTargets.length ? activeTargets.map((item) => item.name).join(" / ") : "未配置");
+  setText("overviewTargetCount", "\u5df2\u5173\u95ed");
+  setText("overviewTargetMeta", "\u4e0d\u8fdb\u884c\u9489\u9489\u7b49\u6e20\u9053\u63a8\u9001");
   setText("overviewRssValue", lastRssRun ? `${lastRssRun.item_count} 条` : "--");
   setText("overviewRssMeta", lastRssRun ? `${formatTime(lastRssRun.fetched_at)} | ${lastRssRun.success ? "成功" : lastRssRun.error_message || "失败"}` : "等待数据");
   setText("systemSgeState", marketState.sge?.label || "--");
@@ -663,7 +641,6 @@ function renderAll() {
   renderRuns();
   renderKeywordBoard();
   renderUs10yTables();
-  renderNotificationLogs();
   if (!isEditingForm()) {
     fillForms(settings);
   }
@@ -836,23 +813,6 @@ function renderRuns() {
   renderPager("rssFetchRunsPager", "rssFetchRuns", rssFetchRuns.length);
 }
 
-function renderNotificationLogs() {
-  const logs = state.notificationLogs || [];
-  const page = getPagedItems(logs, "notificationLogs");
-  const rows = page.items.map((item) => `
-    <tr>
-      <td>${formatTime(item.sent_at)}</td>
-      <td>${item.event_type || item.channel || "--"}</td>
-      <td>${item.target_name || "--"}</td>
-      <td>${item.success ? "成功" : "失败"}</td>
-      <td title="${escapeHtml(item.response_text || item.content || "")}">${escapeHtml(item.content || item.response_text || "--")}</td>
-    </tr>
-  `).join("") || `<tr><td colspan="5" class="muted">暂无推送记录</td></tr>`;
-  const body = document.getElementById("notificationLogsBody");
-  if (body) body.innerHTML = rows;
-  renderPager("notificationLogsPager", "notificationLogs", logs.length);
-}
-
 function renderUs10yTables() {
   const samples = state.us10yHistory || [];
   const runs = state.us10yStatus?.recent_runs || [];
@@ -999,7 +959,6 @@ function fillForms(settings) {
   if (t20) t20.checked = tenors.includes("20y");
 
   renderFeedRows(settings.rss_feed_sources || []);
-  renderTargetRows(settings.notification_targets || []);
 }
 
 function isEditingForm() {
@@ -1026,32 +985,6 @@ function createFeedRow(feed = {}) {
       node.querySelector(".feed-name-input").value = "";
       node.querySelector(".feed-url-input").value = "";
       node.querySelector(".feed-enabled-input").checked = true;
-    }
-  });
-  return node;
-}
-
-function renderTargetRows(items) {
-  const container = document.getElementById("targetRows");
-  container.innerHTML = "";
-  const targets = items.length ? items : [{ name: "默认推送组", webhook: "", secret: "", enabled: true }];
-  targets.forEach((target) => container.appendChild(createTargetRow(target)));
-}
-
-function createTargetRow(target = {}) {
-  const node = document.getElementById("targetRowTemplate").content.firstElementChild.cloneNode(true);
-  node.querySelector(".target-name-input").value = target.name || "默认推送组";
-  node.querySelector(".target-webhook-input").value = target.webhook || "";
-  node.querySelector(".target-secret-input").value = target.secret || "";
-  node.querySelector(".target-enabled-input").checked = target.enabled !== false;
-  node.querySelector(".remove-target-btn").addEventListener("click", () => {
-    if (document.querySelectorAll("#targetRows .editor-row").length > 1) {
-      node.remove();
-    } else {
-      node.querySelector(".target-name-input").value = "默认推送组";
-      node.querySelector(".target-webhook-input").value = "";
-      node.querySelector(".target-secret-input").value = "";
-      node.querySelector(".target-enabled-input").checked = true;
     }
   });
   return node;
@@ -1657,33 +1590,6 @@ async function saveFeedSettings(event) {
   }
 }
 
-async function saveNotificationSettings(event) {
-  event.preventDefault();
-  const targets = [...document.querySelectorAll("#targetRows .editor-row")].map((row) => ({
-    name: row.querySelector(".target-name-input").value.trim() || "\u9ed8\u8ba4\u63a8\u9001\u7ec4",
-    webhook: row.querySelector(".target-webhook-input").value.trim(),
-    secret: row.querySelector(".target-secret-input").value.trim(),
-    enabled: row.querySelector(".target-enabled-input").checked,
-  })).filter((item) => item.webhook);
-
-  const firstTarget = targets[0] || { webhook: "", secret: "" };
-  try {
-    await fetchJson("/api/settings", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        notification_targets: targets,
-        dingtalk_webhook: firstTarget.webhook,
-        dingtalk_secret: firstTarget.secret,
-      }),
-    });
-    await refreshAll();
-    showToast("保存成功", `已保存 ${targets.length} 个推送组。`);
-  } catch (error) {
-    showToast("保存失败", `参数更新失败：${formatErrorMessage(error)}`, "error");
-  }
-}
-
 async function saveUs10ySettings(event) {
   event.preventDefault();
   const tenors = [];
@@ -1751,25 +1657,6 @@ async function runRssMonitor() {
   }
 }
 
-async function sendTestAlert() {
-  const level = Number(document.getElementById("testAlertLevel").value);
-  const note = document.getElementById("testAlertNote").value.trim();
-  try {
-    const result = await fetchJson("/api/reversal/test-alert", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ level, note }),
-    });
-    showToast(
-      result.success ? "推送成功" : "推送失败",
-      result.success ? `已发送${formatLevel(level)}测试推送` : result.response_text,
-      result.success ? "success" : "error",
-    );
-  } catch (error) {
-    showToast("推送失败", `测试推送失败：${formatErrorMessage(error)}`, "error");
-  }
-}
-
 function bindEvents() {
   const bindClick = (id, handler) => {
     const node = document.getElementById(id);
@@ -1833,14 +1720,12 @@ function bindEvents() {
   bindSubmit("reversalSettingsForm", saveReversalSettings);
   bindSubmit("us10ySettingsForm", saveUs10ySettings);
   bindSubmit("feedSettingsForm", saveFeedSettings);
-  bindSubmit("notificationSettingsForm", saveNotificationSettings);
 
   bindClick("runAllBtn", runAllMonitors);
   bindClick("runReversalBtn", runReversalMonitor);
   bindClick("runUs10yBtn", runUs10yMonitor);
   bindClick("fetchRssBtn", runRssMonitor);
   bindClick("refreshBtn", refreshAll);
-  bindClick("testAlertBtn", sendTestAlert);
   bindClick("updateLogBtn", openUpdateLogModal);
   bindClick("closeUpdateLogBtn", closeUpdateLogModal);
   bindClick("addUpdateLogEntryBtn", () => {
@@ -1862,10 +1747,6 @@ function bindEvents() {
   bindClick("addFeedBtn", () => {
     document.getElementById("feedRows").appendChild(createFeedRow({ name: "", url: "", enabled: true }));
   });
-  bindClick("addTargetBtn", () => {
-    document.getElementById("targetRows").appendChild(createTargetRow({ name: "默认推送组", enabled: true }));
-  });
-
   window.addEventListener("resize", () => {
     Object.values(state.charts).forEach((chart) => chart.resize());
   });

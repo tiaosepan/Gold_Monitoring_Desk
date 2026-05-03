@@ -4,7 +4,6 @@
 from .sina_api import SinaFinanceAPI
 from .goldapi_client import GoldAPIClient
 from .fred_api import FREDAPIClient
-from .dingtalk import DingTalkPusher
 from .eastmoney_api import EastmoneyAPI
 from .cnbc_api import CNBCAPI
 from .helpers import (
@@ -39,7 +38,6 @@ __all__ = [
     'SinaFinanceAPI',
     'GoldAPIClient',
     'FREDAPIClient',
-    'DingTalkPusher',
     'EastmoneyAPI',
     'CNBCAPI',
     'check_market_status',

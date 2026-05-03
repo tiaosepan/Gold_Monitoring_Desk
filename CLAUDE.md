@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 黄金监控中台（Gold Monitoring Desk）- 复刻自 http://rev.sccit.com.cn:8000 的实时黄金价格监控系统。
 
-核心功能：监控 SGE（上海黄金交易所）溢价、检测黄金价格反转信号、追踪美债收益率变化、采集地缘政治/战争 RSS 事件，并通过钉钉推送警报。
+核心功能：监控 SGE（上海黄金交易所）溢价、检测黄金价格反转信号、追踪美债收益率变化、采集地缘政治/战争 RSS 事件；**不**进行钉钉等外发消息推送（警报仅日志与站内展示）。
 
 ## 快速启动
 
@@ -52,8 +52,7 @@ backend/
 ├── utils/
 │   ├── goldapi_client.py # Gold-API 客户端（国际金价主源）
 │   ├── sina_api.py      # 新浪财经 API 客户端（备用+国内数据）
-│   ├── fred_api.py      # FRED API 客户端（美债备源）
-│   └── dingtalk.py      # 钉钉推送客户端
+│   └── fred_api.py      # FRED API 客户端（美债备源）
 static/
 ├── index.html           # 前端页面
 ├── app.js               # 前端逻辑（ECharts 图表）
@@ -87,8 +86,8 @@ http://localhost:8000/docs
  - 注意：nf_AU0 在非交易时段仍有有效报价，始终使用 API 返回值计算溢价
  - 仅当溢价异常（<0 或 >20 元/克）且市场关闭时，才使用历史平均溢价作为代理
 2. **反转检测**：4 类信号（价格 MA15 反弹/政治 RSS/战争 RSS/美债下跌）→ 综合评级 Level 0-4
-3. **RSS 评分**：关键词匹配 → 1-10 分体系 → 高分事件触发信号
-4. **推送**：Level 2+ 信号 → 钉钉机器人 Webhook
+3. **RSS 评分**：关键词匹配 → 1-10 分体系 → 高分事件参与反转评分
+4. **警报**：调度器对满足条件的信号写日志（`scheduler` 日志），不调用外发 Webhook
 
 ## API 端点
 
@@ -100,7 +99,6 @@ http://localhost:8000/docs
 
 ## 配置说明
 
-- 钉钉 Webhook：在数据库 `push_targets` 表或通过 API 配置
 - FRED API 密钥（可选）：`$env:FRED_API_KEY="your_key"` 用于美债备用数据源
 - 阈值参数：存储在 `system_config` 表（溢价/轮询间隔/信号窗口等）
 

@@ -8,7 +8,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 # 修改数据库文件名
 os.environ['DB_FILE'] = 'gold_monitor_v2.db'
 
-from backend.database import Base, engine, SessionLocal, SystemConfig, RSSSource, PushTarget, DataSourceHealth, SchedulerStatus
+from backend.database import Base, engine, SessionLocal, SystemConfig, RSSSource, DataSourceHealth, SchedulerStatus
 
 # 创建所有表
 print("创建数据库表...")
@@ -55,20 +55,8 @@ try:
         if not existing:
             db.add(RSSSource(name=name, url=url, category=category, is_active=1))
     
-    # 插入推送目标 - 如果不存在
-    existing_push = db.query(PushTarget).filter(PushTarget.name == '钉钉机器人-主群').first()
-    if not existing_push:
-        push_target = PushTarget(
-            name='钉钉机器人-主群',
-            type='dingtalk',
-            webhook_url='https://oapi.dingtalk.com/robot/send?access_token=ea508357bbcd5c6801fa5cb91bf0dc9126c4f2c04f5a64bbd2fdae690f0bc56f',
-            secret='SEC094d44544892fcdc78bd5283c85dea129475cd785d9851bf12e0c65420a378b0',
-            is_active=1
-        )
-        db.add(push_target)
-    
     # 插入数据源健康记录 - 如果不存在
-    health_data = ['Sina Finance API', 'FRED API', 'RSS Sources', 'DingTalk Push']
+    health_data = ['Sina Finance API', 'FRED API', 'RSS Sources']
     for source_name in health_data:
         existing = db.query(DataSourceHealth).filter(DataSourceHealth.source_name == source_name).first()
         if not existing:
@@ -85,7 +73,6 @@ try:
     print("初始数据插入成功！")
     print(f"  - 配置项: {db.query(SystemConfig).count()}")
     print(f"  - RSS源: {db.query(RSSSource).count()}")
-    print(f"  - 推送目标: {db.query(PushTarget).count()}")
     
 except Exception as e:
     print(f"错误: {e}")

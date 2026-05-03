@@ -14,7 +14,7 @@ from .services import (
     RSSCollectorService,
     ReversalDetectorService
 )
-from .utils import DingTalkPusher, scheduler_logger, metrics
+from .utils import scheduler_logger, metrics
 
 # 导入V2版本检测器
 try:
@@ -285,29 +285,13 @@ class TaskScheduler:
                     f"RSS采集完成 - 耗时: {duration_ms}ms - 新增事件: {new_events} - 错误源: {error_count}"
                 )
                 
-                # 检查高分事件并推送
+                # 高分事件仅记录日志（系统不对外推送）
                 if result['success']:
                     high_score_events = service.get_high_score_events(6)
                     if high_score_events:
-                        scheduler_logger.info(f"发现 {len(high_score_events)} 个高分RSS事件")
-                    
-                    for event in high_score_events:
-                        if event.get('is_pushed', 0) == 0:  # 只推送未推送的事件
-                            alert = {
-                                'alert_type': f"RSS事件警报 - {event['category']}",
-                                'level': 3,
-                                'content': f"标题: {event['title']}\n"
-                                          f"分类: {event['category']}\n"
-                                          f"评分: {event['score']}\n"
-                                          f"来源: {event['source_name']}\n"
-                                          f"链接: {event['link']}",
-                                'timestamp': datetime.now()
-                            }
-                            scheduler_logger.warning(f"推送高分RSS事件: {event['title'][:50]}...")
-                            await self._send_alert(alert)
-                            
-                            # 标记为已推送
-                            service.mark_as_pushed(event['id'])
+                        scheduler_logger.info(
+                            f"发现 {len(high_score_events)} 个高分RSS事件（仅站内数据，不推送）"
+                        )
             
             # 更新任务状态
             self._update_task_status(db, 'rss_collector', 'success')
@@ -435,63 +419,12 @@ class TaskScheduler:
             db.commit()
     
     async def _send_alert(self, alert: dict):
-        """
-        发送警报
-        
-        Args:
-            alert: 警报信息
-        """
-        start_time = datetime.now()
-        
-        try:
-            # 获取推送目标配置
-            db = SessionLocal()
-            from .database import PushTarget, PushLog
-            
-            targets = db.query(PushTarget).filter_by(is_active=1).all()
-            
-            if not targets:
-                scheduler_logger.warning("没有配置活跃的推送目标")
-                return
-            
-            scheduler_logger.info(f"准备推送警报到 {len(targets)} 个目标")
-            
-            for target in targets:
-                if target.type == 'dingtalk':
-                    try:
-                        async with DingTalkPusher(target.webhook_url, target.secret) as pusher:
-                            result = await pusher.send_alert(
-                                alert['alert_type'],
-                                alert['level'],
-                                alert['content']
-                            )
-                            
-                            # 记录推送日志
-                            log = PushLog(
-                                target_id=target.id,
-                                message_type='alert',
-                                message_content=alert['content'],
-                                status='success' if result['success'] else 'failed',
-                                error_message=result.get('message') if not result['success'] else None
-                            )
-                            db.add(log)
-                            
-                            if result['success']:
-                                scheduler_logger.info(f"推送成功: {target.name}")
-                            else:
-                                scheduler_logger.error(f"推送失败: {target.name} - {result.get('message')}")
-                    except Exception as e:
-                        scheduler_logger.error(f"推送异常: {target.name} - {str(e)}", exc_info=True)
-            
-            db.commit()
-            db.close()
-            
-            duration_ms = int((datetime.now() - start_time).total_seconds() * 1000)
-            scheduler_logger.debug(f"警报推送完成 - 耗时: {duration_ms}ms")
-            
-        except Exception as e:
-            duration_ms = int((datetime.now() - start_time).total_seconds() * 1000)
-            scheduler_logger.error(f"发送警报失败 - 耗时: {duration_ms}ms - 错误: {str(e)}", exc_info=True)
+        """警报仅写日志，不调用任何外部消息推送。"""
+        preview = (alert.get('content') or '')[:200]
+        scheduler_logger.warning(
+            f"[警报·仅日志] {alert.get('alert_type', 'alert')} | "
+            f"level={alert.get('level')} | {preview}"
+        )
 
 
 # 全局调度器实例

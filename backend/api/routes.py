@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from typing import Dict, List
 from datetime import datetime, timedelta
 
-from ..database import get_db, SystemConfig, SGEPrice, USTreasury, RSSEvent, RSSSource, ReversalCondition, UpdateRecord, PushTarget, PushLog, AlertHistory
+from ..database import get_db, SystemConfig, SGEPrice, USTreasury, RSSEvent, RSSSource, ReversalCondition, UpdateRecord, PushLog, AlertHistory
 from ..services import SGEMonitorService, US10YMonitorService, RSSCollectorService, ReversalDetectorService
 from ..utils.cache import get_cache
 
@@ -50,22 +50,11 @@ async def get_system_status(db: Session = Depends(get_db)):
     
     if cached_config:
         config_dict = cached_config['config_dict']
-        notification_targets = cached_config['notification_targets']
         rss_feed_sources = cached_config['rss_feed_sources']
-        push_targets = cached_config.get('push_targets', [])
     else:
         # 获取所有配置
         configs = db.query(SystemConfig).all()
         config_dict = {c.config_key: c.config_value for c in configs}
-        
-        # 获取推送目标
-        push_targets = db.query(PushTarget).all()
-        notification_targets = [{
-            'name': pt.name,
-            'webhook': pt.webhook_url,
-            'secret': pt.secret,
-            'enabled': bool(pt.is_active)
-        } for pt in push_targets]
         
         # 获取RSS源完整信息
         rss_sources = db.query(RSSSource).all()
@@ -77,20 +66,15 @@ async def get_system_status(db: Session = Depends(get_db)):
             'enabled': bool(rs.is_active)
         } for rs in rss_sources]
         
-        # 缓存静态配置
+        # 缓存静态配置（不含任何推送凭据）
         cache.set(cache_key, {
             'config_dict': config_dict,
-            'notification_targets': notification_targets,
             'rss_feed_sources': rss_feed_sources,
-            'push_targets': push_targets
         }, ttl_seconds=30)
     
-    # 构建settings
+    # 构建settings（系统不配置外发消息推送）
     settings = {
-        'dingtalk_webhook': push_targets[0].webhook_url if push_targets else '',
-        'dingtalk_secret': push_targets[0].secret if push_targets else '',
-        'dingtalk_at_user_ids': [],
-        'notification_targets': notification_targets,
+        'notification_targets': [],
         'premium_threshold': float(config_dict.get('premium_threshold', 20.0)),
         'poll_interval_seconds': int(config_dict.get('poll_interval_seconds', 60)),
         'alert_cooldown_seconds': int(config_dict.get('alert_cooldown_seconds', 900)),
@@ -220,7 +204,6 @@ async def get_system_status(db: Session = Depends(get_db)):
         'triggered_conditions': a.content.split('触发条件: ')[1].split('\n')[0] if '触发条件: ' in a.content else '',
         'success': 1 if a.status == 'success' else 0,
         'response_text': a.response_text or '',
-        'webhook_url': push_targets[0].webhook_url if push_targets else ''
     } for a in reversal_alerts]
     
     # 获取反转运行记录
@@ -538,7 +521,7 @@ async def get_notification_logs(limit: int = 50, db: Session = Depends(get_db)):
             'id': l.id,
             'sent_at': l.created_at.isoformat() if l.created_at else None,
             'event_type': l.message_type,
-            'channel': 'dingtalk',
+            'channel': 'none',
             'target_name': l.target.name if l.target else '默认',
             'content': l.message_content,
             'success': l.status == 'success',
@@ -799,15 +782,6 @@ async def get_settings(db: Session = Depends(get_db)):
         configs = db.query(SystemConfig).all()
         config_dict = {c.config_key: c.config_value for c in configs}
         
-        # 获取推送目标
-        push_targets = db.query(PushTarget).filter_by(is_active=1).all()
-        notification_targets = [{
-            'name': pt.name,
-            'webhook': pt.webhook_url,
-            'secret': pt.secret,
-            'enabled': bool(pt.is_active)
-        } for pt in push_targets]
-        
         # 获取RSS源完整信息
         rss_sources = db.query(RSSSource).all()
         rss_feed_sources = [{
@@ -818,12 +792,9 @@ async def get_settings(db: Session = Depends(get_db)):
             'enabled': bool(rs.is_active)
         } for rs in rss_sources]
         
-        # 构建settings对象
+        # 构建settings对象（无外发推送配置）
         settings = {
-            'dingtalk_webhook': push_targets[0].webhook_url if push_targets else '',
-            'dingtalk_secret': push_targets[0].secret if push_targets else '',
-            'dingtalk_at_user_ids': [],
-            'notification_targets': notification_targets,
+            'notification_targets': [],
             'premium_threshold': float(config_dict.get('premium_threshold', 20.0)),
             'poll_interval_seconds': int(config_dict.get('poll_interval_seconds', 60)),
             'alert_cooldown_seconds': int(config_dict.get('alert_cooldown_seconds', 900)),
@@ -870,20 +841,6 @@ async def update_settings(settings: Dict, db: Session = Depends(get_db)):
                         config_value=str(settings[api_key]),
                         description=api_key
                     ))
-        
-        # 更新推送目标
-        if 'notification_targets' in settings:
-            # 删除现有推送目标
-            db.query(PushTarget).delete()
-            
-            # 添加新的推送目标
-            for target in settings['notification_targets']:
-                db.add(PushTarget(
-                    name=target.get('name', '默认推送组'),
-                    webhook_url=target.get('webhook', ''),
-                    secret=target.get('secret', ''),
-                    is_active=1 if target.get('enabled', True) else 0
-                ))
         
         db.commit()
         return {'success': True, 'message': '配置更新成功'}
@@ -1022,28 +979,6 @@ async def run_reversal_rss_once(db: Session = Depends(get_db)):
             await rss_service.collect_all()
         
         return {'success': True, 'message': '已执行RSS采集'}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.post("/api/reversal/test-alert")
-async def send_reversal_test_alert(payload: Dict, db: Session = Depends(get_db)):
-    """发送测试推送（原系统格式）"""
-    try:
-        level = payload.get('level', 4)
-        note = payload.get('note', '测试推送')
-        
-        # 获取推送目标
-        push_targets = db.query(PushTarget).filter_by(is_active=1).all()
-        
-        if not push_targets:
-            return {'success': False, 'response_text': '未配置推送目标'}
-        
-        # 这里应该调用推送服务，但为了简化，直接返回成功
-        return {
-            'success': True,
-            'response_text': f'已发送{level}级测试推送: {note}'
-        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
