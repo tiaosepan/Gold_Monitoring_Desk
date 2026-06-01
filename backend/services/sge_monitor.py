@@ -164,8 +164,14 @@ class SGEMonitorService:
             # 因此始终使用 API 返回的 sge_price 来计算溢价，而不是用代理价格
             premium_cny_per_g = sge_price - london_price_cny_per_g
 
-            # 仅当溢价明显异常（负值或过大）且市场关闭时，才使用历史平均溢价
-            if premium_cny_per_g < 0 or premium_cny_per_g > 20:
+            # 仅当溢价明显异常（负值或超过配置阈值）且市场关闭时，才使用历史平均溢价
+            threshold_cfg = self.db.query(SystemConfig).filter_by(
+                config_key='premium_threshold'
+            ).first()
+            premium_threshold = safe_float(
+                threshold_cfg.config_value if threshold_cfg else '20', 20.0
+            )
+            if premium_cny_per_g < 0 or premium_cny_per_g > premium_threshold:
                 if market_status['shfe_market_open'] == 0:
                     sge_logger.warning(f"溢价异常: {premium_cny_per_g:.4f}元/克，使用历史平均溢价")
                     recent_records = self.db.query(SGEPrice).filter(

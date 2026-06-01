@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import Dict, List
 from datetime import datetime, timedelta
+from urllib.parse import urlparse
 
 from ..database import get_db, SystemConfig, SGEPrice, USTreasury, RSSEvent, RSSSource, ReversalCondition, UpdateRecord, PushLog, AlertHistory
 from ..services import SGEMonitorService, US10YMonitorService, RSSCollectorService, ReversalDetectorService
@@ -12,6 +13,50 @@ from ..utils.cache import get_cache
 
 router = APIRouter()
 cache = get_cache()
+STATUS_CACHE_KEY = "status:static_config"
+
+
+def _invalidate_status_cache() -> None:
+    cache.delete(STATUS_CACHE_KEY)
+
+
+def _format_reversal_alert(alert: AlertHistory) -> Dict:
+    """将 AlertHistory 转为前端兼容结构。"""
+    content = alert.alert_content or ""
+    triggered = ""
+    if "触发条件: " in content:
+        triggered = content.split("触发条件: ")[1].split("\n")[0].strip()
+    return {
+        "id": alert.id,
+        "sample_id": None,
+        "sent_at": alert.created_at.isoformat() if alert.created_at else None,
+        "signal_level": alert.alert_level,
+        "alert_level": alert.alert_level,
+        "triggered_conditions": triggered,
+        "alert_content": content,
+        "success": 1 if alert.is_pushed else 0,
+        "is_pushed": alert.is_pushed,
+        "response_text": "",
+    }
+
+
+def _validate_rss_url(url: str) -> str:
+    """校验 RSS URL，降低 SSRF 风险。"""
+    parsed = urlparse((url or "").strip())
+    if parsed.scheme not in ("http", "https"):
+        raise HTTPException(status_code=400, detail="RSS URL 须使用 http 或 https")
+    host = (parsed.hostname or "").lower()
+    blocked_hosts = ("localhost", "127.0.0.1", "0.0.0.0", "::1")
+    if host in blocked_hosts or host.startswith("192.168.") or host.startswith("10.") or host.startswith("172."):
+        raise HTTPException(status_code=400, detail="不允许使用内网 RSS 地址")
+    return parsed.geturl()
+
+
+def _parse_us10y_tenors(config_dict: Dict) -> List[str]:
+    raw = config_dict.get("us10y_tenors", "10y")
+    if isinstance(raw, list):
+        return [str(t).strip() for t in raw if str(t).strip()]
+    return [t.strip() for t in str(raw).split(",") if t.strip()] or ["10y"]
 
 
 @router.get("/health")
@@ -45,7 +90,7 @@ async def get_system_status(db: Session = Depends(get_db)):
     获取系统状态（完全匹配原系统格式）
     """
     # 尝试从缓存获取静态配置（30秒TTL）
-    cache_key = "status:static_config"
+    cache_key = STATUS_CACHE_KEY
     cached_config = cache.get(cache_key)
     
     if cached_config:
@@ -87,7 +132,7 @@ async def get_system_status(db: Session = Depends(get_db)):
         'us10y_poll_interval_seconds': int(config_dict.get('poll_interval_seconds', 60)),
         'us10y_drop_lookback_hours': float(config_dict.get('us10y_drop_lookback_hours', 24.0)),
         'us10y_drop_threshold_bp': float(config_dict.get('us10y_drop_threshold_bp', 1.0)),
-        'us10y_tenors': ['10y'],
+        'us10y_tenors': _parse_us10y_tenors(config_dict),
         'rss_poll_interval_seconds': int(config_dict.get('rss_poll_interval_seconds', 1800)),
         'rss_feed_sources': rss_feed_sources
     }
@@ -196,19 +241,11 @@ async def get_system_status(db: Session = Depends(get_db)):
         alert_type='reversal'
     ).order_by(AlertHistory.created_at.desc()).limit(10).all()
     
-    reversal_alerts_list = [{
-        'id': a.id,
-        'sample_id': a.related_id,
-        'sent_at': a.created_at.isoformat(),
-        'signal_level': a.level,
-        'triggered_conditions': a.content.split('触发条件: ')[1].split('\n')[0] if '触发条件: ' in a.content else '',
-        'success': 1 if a.status == 'success' else 0,
-        'response_text': a.response_text or '',
-    } for a in reversal_alerts]
+    reversal_alerts_list = [_format_reversal_alert(a) for a in reversal_alerts]
     
     # 获取反转运行记录
     reversal_runs = db.query(UpdateRecord).filter_by(
-        data_type='reversal'
+        data_type='reversal_detection'
     ).order_by(UpdateRecord.created_at.desc()).limit(10).all()
     
     reversal_runs_list = [{
@@ -221,13 +258,20 @@ async def get_system_status(db: Session = Depends(get_db)):
         'error_message': r.error_message
     } for r in reversal_runs]
     
-    # 获取最近RSS事件
+    # 获取最近RSS事件（批量加载 source，避免 N+1）
     recent_rss_events = db.query(RSSEvent).order_by(RSSEvent.fetched_at.desc()).limit(15).all()
+    rss_source_ids = [e.source_id for e in recent_rss_events if e.source_id]
+    rss_source_map = {}
+    if rss_source_ids:
+        for sid, name in db.query(RSSSource.id, RSSSource.name).filter(
+            RSSSource.id.in_(rss_source_ids)
+        ).all():
+            rss_source_map[sid] = name
     recent_rss_events_list = [{
         'id': e.id,
         'fetched_at': e.fetched_at.isoformat(),
         'published_at': e.published_at.isoformat() if e.published_at else None,
-        'source': e.source.name if e.source else 'Unknown',
+        'source': rss_source_map.get(e.source_id, 'Unknown'),
         'feed_url': e.feed_url,
         'title': e.title,
         'link': e.link,
@@ -447,8 +491,10 @@ async def update_config(config_data: Dict, db: Session = Depends(get_db)):
                 db.add(config)
         
         db.commit()
+        _invalidate_status_cache()
         return {'success': True, 'message': '配置更新成功'}
     except Exception as e:
+        db.rollback()
         return {'success': False, 'message': f'配置更新失败: {str(e)}'}
 
 
@@ -644,8 +690,14 @@ async def get_reversal_status(db: Session = Depends(get_db)):
                 'id': a[0],
                 'sent_at': a[1].isoformat() if a[1] else None,
                 'alert_level': a[2],
+                'signal_level': a[2],
                 'alert_content': a[3],
-                'is_pushed': a[4]
+                'triggered_conditions': (
+                    a[3].split('触发条件: ')[1].split('\n')[0].strip()
+                    if a[3] and '触发条件: ' in a[3] else ''
+                ),
+                'success': 1 if a[4] else 0,
+                'is_pushed': a[4],
             } for a in recent_alerts],
             'recent_events': [{
                 'id': e[0],
@@ -800,7 +852,7 @@ async def get_settings(db: Session = Depends(get_db)):
             'alert_cooldown_seconds': int(config_dict.get('alert_cooldown_seconds', 900)),
             'request_timeout_seconds': float(config_dict.get('request_timeout_seconds', 10.0)),
             'reversal_cooldown_seconds': int(config_dict.get('reversal_cooldown_seconds', 1800)),
-            'reversal_price_lookback_minutes': int(config_dict.get('reversal_price_lookback_minutes', 360)),
+            'reversal_price_lookback_minutes': int(config_dict.get('reversal_price_lookback_minutes', 60)),
             'reversal_price_rebound_pct': float(config_dict.get('reversal_price_rebound_pct', 1.2)),
             'reversal_price_ma_window': int(config_dict.get('reversal_price_ma_window', 15)),
             'reversal_signal_window_minutes': int(config_dict.get('reversal_signal_window_minutes', 180)),
@@ -843,6 +895,7 @@ async def update_settings(settings: Dict, db: Session = Depends(get_db)):
                     ))
         
         db.commit()
+        _invalidate_status_cache()
         return {'success': True, 'message': '配置更新成功'}
     except Exception as e:
         db.rollback()
@@ -898,22 +951,26 @@ async def update_reversal_settings(settings: Dict, db: Session = Depends(get_db)
             
             # 添加新的RSS源
             for feed in settings['rss_feed_sources']:
+                feed_url = _validate_rss_url(feed['url'])
                 # 自动判断分类
                 category = 'political'
-                url_lower = feed['url'].lower()
+                url_lower = feed_url.lower()
                 title_lower = feed.get('name', '').lower()
                 if any(kw in url_lower or kw in title_lower for kw in ['war', 'conflict', 'military', '战争', '冲突', '军事']):
                     category = 'war'
                 
                 db.add(RSSSource(
                     name=feed.get('name', '未命名RSS源'),
-                    url=feed['url'],
+                    url=feed_url,
                     category=category,
                     is_active=1 if feed.get('enabled', True) else 0
                 ))
         
         db.commit()
+        _invalidate_status_cache()
         return {'success': True, 'message': '配置更新成功'}
+    except HTTPException:
+        raise
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
@@ -956,15 +1013,14 @@ async def run_reversal_once(db: Session = Depends(get_db)):
 async def run_us10y_once(db: Session = Depends(get_db)):
     """立即执行美债采样（原系统格式）"""
     try:
-        us10y_service = US10YMonitorService(db)
-        
-        # 获取配置的期限
         config = db.query(SystemConfig).filter_by(config_key='us10y_tenors').first()
         tenors = config.config_value.split(',') if config else ['10y']
         
-        # 采样所有期限
-        for tenor in tenors:
-            await us10y_service.fetch_and_save(tenor)
+        async with US10YMonitorService(db) as us10y_service:
+            for tenor in tenors:
+                tenor = tenor.strip()
+                if tenor:
+                    await us10y_service.fetch_and_save_data(tenor)
         
         return {'success': True, 'message': f'已采样美债: {", ".join(tenors)}'}
     except Exception as e:
@@ -1007,15 +1063,16 @@ async def get_rss_sources(db: Session = Depends(get_db)):
 async def create_rss_source(source_data: Dict, db: Session = Depends(get_db)):
     """创建RSS源"""
     try:
+        feed_url = _validate_rss_url(source_data['url'])
         # 检查URL是否已存在
-        existing = db.query(RSSSource).filter_by(url=source_data['url']).first()
+        existing = db.query(RSSSource).filter_by(url=feed_url).first()
         if existing:
             return {'success': False, 'message': '该RSS源已存在'}
         
         # 自动判断分类
         category = source_data.get('category', 'political')
         if not category or category not in ['political', 'war']:
-            url_lower = source_data['url'].lower()
+            url_lower = feed_url.lower()
             title_lower = source_data.get('name', '').lower()
             if any(kw in url_lower or kw in title_lower for kw in ['war', 'conflict', 'military', '战争', '冲突', '军事']):
                 category = 'war'
@@ -1025,7 +1082,7 @@ async def create_rss_source(source_data: Dict, db: Session = Depends(get_db)):
         # 创建新源
         source = RSSSource(
             name=source_data.get('name', '未命名RSS源'),
-            url=source_data['url'],
+            url=feed_url,
             category=category,
             is_active=1 if source_data.get('enabled', True) else 0
         )

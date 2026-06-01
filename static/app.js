@@ -100,7 +100,17 @@ function updateLoadingUI() {
 }
 
 // ==================== Toast 提示系统 ====================
-function showToast(message, type = 'info') {
+function showToast(title, messageOrType = 'info', tone) {
+  let message;
+  let type;
+  const toneTypes = ['success', 'error', 'warning', 'info'];
+  if (tone !== undefined || (messageOrType && !toneTypes.includes(messageOrType))) {
+    message = messageOrType ? `${title} — ${messageOrType}` : title;
+    type = tone === 'error' ? 'error' : tone === 'warning' ? 'warning' : 'success';
+  } else {
+    message = title;
+    type = messageOrType;
+  }
   // 创建toast容器（如果不存在）
   let container = document.getElementById('toastContainer');
   if (!container) {
@@ -434,28 +444,6 @@ function setText(id, text) {
   if (node) node.textContent = text;
 }
 
-function getToastHost() {
-  let host = document.getElementById("toastHost");
-  if (!host) {
-    host = document.createElement("div");
-    host.id = "toastHost";
-    host.className = "toast-host";
-    document.body.appendChild(host);
-  }
-  return host;
-}
-
-function showToast(title, message, tone = "success") {
-  const host = getToastHost();
-  const toast = document.createElement("div");
-  toast.className = `toast ${tone}`;
-  toast.innerHTML = `<span class="toast-title">${title}</span><span>${message}</span>`;
-  host.appendChild(toast);
-  window.setTimeout(() => {
-    toast.remove();
-  }, 3200);
-}
-
 function formatErrorMessage(error) {
   if (!error) return "请求失败";
   return String(error.message || error).slice(0, 180);
@@ -548,6 +536,9 @@ function renderPager(pagerId, key, totalItems) {
   node.innerHTML = `<span class="pager-meta">第 ${page} / ${totalPages} 页，共 ${totalItems} 条</span>${buttons.join("")}`;
 }
 
+let refreshInFlight = null;
+let refreshAbortController = null;
+
 async function fetchJson(url, options = {}) {
   const res = await fetch(url, options);
   if (!res.ok) {
@@ -558,16 +549,28 @@ async function fetchJson(url, options = {}) {
 }
 
 async function refreshAll() {
+  if (refreshInFlight) {
+    return refreshInFlight;
+  }
+  if (document.hidden) {
+    return;
+  }
   showLoading('refreshAll');
-  
+  if (refreshAbortController) {
+    refreshAbortController.abort();
+  }
+  refreshAbortController = new AbortController();
+  const fetchOpts = { signal: refreshAbortController.signal };
+
+  refreshInFlight = (async () => {
   try {
     const [status, sgeHistory, reversalStatus, reversalHistory, us10yStatus, us10yHistory] = await Promise.all([
-      fetchJson("/api/status"),
-      fetchJson(`/api/history?range=${state.sgeRange}`),
-      fetchJson("/api/reversal/status"),
-      fetchJson(`/api/reversal/history?range=${state.reversalRange}`),
-      fetchJson("/api/us10y/status"),
-      fetchJson(`/api/us10y/history?range=${state.us10yRange}`),
+      fetchJson("/api/status", fetchOpts),
+      fetchJson(`/api/history?range=${state.sgeRange}`, fetchOpts),
+      fetchJson("/api/reversal/status", fetchOpts),
+      fetchJson(`/api/reversal/history?range=${state.reversalRange}`, fetchOpts),
+      fetchJson("/api/us10y/status", fetchOpts),
+      fetchJson(`/api/us10y/history?range=${state.us10yRange}`, fetchOpts),
     ]);
     state.status = status;
   state.reversalStatus = reversalStatus;
@@ -577,11 +580,17 @@ async function refreshAll() {
   state.us10yHistory = us10yHistory.items || [];
   renderAll();
   } catch (error) {
+    if (error.name === 'AbortError') {
+      return;
+    }
     console.error('数据刷新失败:', error);
     showToast('数据刷新失败: ' + formatErrorMessage(error), 'error');
   } finally {
     hideLoading('refreshAll');
+    refreshInFlight = null;
   }
+  })();
+  return refreshInFlight;
 }
 
 function renderAll() {
@@ -705,19 +714,25 @@ function renderReversalTables() {
       <td>${item.note || "--"}</td>
     </tr>
   `).join("");
+  const alertLevel = (item) => item.signal_level ?? item.alert_level;
+  const alertTriggered = (item) =>
+    item.triggered_conditions
+    || (item.alert_content && item.alert_content.includes("触发条件: ")
+      ? item.alert_content.split("触发条件: ")[1].split("\n")[0].trim()
+      : "");
   document.getElementById("reversalAlertsBody").innerHTML = alertsPage.items.map((item) => `
     <tr>
       <td>${formatTime(item.sent_at)}</td>
-      <td><span class="tag ${levelClass(item.signal_level)}">${formatLevel(item.signal_level)}</span></td>
-      <td>${item.triggered_conditions || "--"}</td>
+      <td><span class="tag ${levelClass(alertLevel(item))}">${formatLevel(alertLevel(item))}</span></td>
+      <td>${escapeHtml(alertTriggered(item) || "--")}</td>
       <td>${item.success ? "成功" : "失败"}</td>
     </tr>
   `).join("");
   document.getElementById("overviewReversalAlerts").innerHTML = overviewAlertsPage.items.map((item) => `
     <tr>
       <td>${formatTime(item.sent_at)}</td>
-      <td>${formatLevel(item.signal_level)}</td>
-      <td>${item.triggered_conditions || "--"}</td>
+      <td>${formatLevel(alertLevel(item))}</td>
+      <td>${escapeHtml(alertTriggered(item) || "--")}</td>
       <td>${item.success ? "成功" : "失败"}</td>
     </tr>
   `).join("") || `<tr><td colspan="4" class="muted">暂无记录</td></tr>`;
@@ -739,21 +754,22 @@ function renderEvents() {
   const buildHtml = (items, withScore = false) => items.length ? items.map((item) => {
     const eventType = item.event_type || "all";
     const keywords = (item.matched_keywords || "").split(",").filter(Boolean);
+    const safeLink = item.link && /^https?:\/\//i.test(item.link) ? escapeHtml(item.link) : "";
     return `
       <article class="event-card">
         <div class="event-meta">
           <span class="tag ${eventType}">${eventType === "political" ? "政治缓和" : "战争进度"}</span>
-          <span class="tag">${item.source || "未知来源"}</span>
+          <span class="tag">${escapeHtml(item.source || "未知来源")}</span>
           <span class="tag">📥 采集: ${formatTime(item.fetched_at)}</span>
           <span class="tag">📰 发布: ${formatTime(item.published_at || item.fetched_at)}</span>
-          ${withScore ? `<span class="tag risk-score ${scoreClass(item.impact_level)}">缓和评分 ${item.impact_score ?? "--"}/10 (${item.impact_level || "低"})</span>` : ""}
+          ${withScore ? `<span class="tag risk-score ${scoreClass(item.impact_level)}">缓和评分 ${item.impact_score ?? "--"}/10 (${escapeHtml(item.impact_level || "低")})</span>` : ""}
         </div>
-        <h4>${item.title || "暂无标题"}</h4>
-        <p>${item.summary || "暂无摘要"}</p>
+        <h4>${escapeHtml(item.title || "暂无标题")}</h4>
+        <p>${escapeHtml(item.summary || "暂无摘要")}</p>
         <div class="event-meta">
-          ${keywords.map((keyword) => `<span class="tag">${keyword}</span>`).join("")}
-          ${withScore ? `<span class="tag">${item.impact_note || "无评分说明"}</span>` : ""}
-          ${item.link ? `<a href="${item.link}" target="_blank" rel="noreferrer">查看原文</a>` : ""}
+          ${keywords.map((keyword) => `<span class="tag">${escapeHtml(keyword)}</span>`).join("")}
+          ${withScore ? `<span class="tag">${escapeHtml(item.impact_note || "无评分说明")}</span>` : ""}
+          ${safeLink ? `<a href="${safeLink}" target="_blank" rel="noreferrer">查看原文</a>` : ""}
         </div>
       </article>
     `;
@@ -1769,7 +1785,11 @@ refreshAll().catch((error) => {
 });
 
 setInterval(() => {
-  refreshAll().catch((error) => {
-    console.error('定时刷新失败:', error);
-  });
+  if (!document.hidden) {
+    refreshAll().catch((error) => {
+      if (error.name !== 'AbortError') {
+        console.error('定时刷新失败:', error);
+      }
+    });
+  }
 }, 15000);

@@ -1,6 +1,7 @@
 """安全启动脚本 - 检查并清理旧进程后启动"""
 import os
 import sys
+import subprocess
 import psutil
 import time
 from pathlib import Path
@@ -18,7 +19,11 @@ def find_backend_processes():
             # 检查是否是Python进程且运行main.py
             if 'python' in proc.info['name'].lower():
                 cmdline = ' '.join(proc.info['cmdline'] or [])
-                if 'main.py' in cmdline and 'Gold_Monitoring_Desk' in cmdline:
+                if 'main.py' in cmdline and (
+                    'Gold_Monitoring_Desk' in cmdline
+                    or 'gold_monitoring' in cmdline.lower()
+                    or str(Path(__file__).resolve().parent) in cmdline
+                ):
                     backend_pids.append(proc.pid)
         except (psutil.NoSuchProcess, psutil.AccessDenied, KeyError):
             continue
@@ -80,7 +85,7 @@ def main():
     
     # 2. 删除锁文件
     print("\n[2] 清理进程锁文件...")
-    lock_file = Path(__file__).parent / 'backend.lock'
+    lock_file = Path(__file__).parent / 'backend' / 'backend.lock'
     if lock_file.exists():
         lock_file.unlink()
         print(f"[成功] 已删除锁文件: {lock_file}")
@@ -94,10 +99,8 @@ def main():
     backend_dir = Path(__file__).parent / 'backend'
     os.chdir(backend_dir)
     
-    # 启动main.py
-    os.system('python main.py')
-    
-    return 0
+    # 启动 main.py（使用当前解释器，便于 venv）
+    return subprocess.call([sys.executable, 'main.py'], cwd=str(backend_dir))
 
 if __name__ == '__main__':
     try:

@@ -232,7 +232,7 @@ class US10YMonitorService:
 
             # 检测收益率下跌信号（阈值改为5bp）
             lookback_hours = self._get_config('us10y_drop_lookback_hours', 24.0)
-            threshold_bp = self._get_config('us10y_drop_threshold_bp', 5.0)
+            threshold_bp = self._get_config('us10y_drop_threshold_bp', 1.0)
 
             cutoff_time = datetime.now() - timedelta(hours=lookback_hours)
             from sqlalchemy import func
@@ -371,29 +371,43 @@ class US10YMonitorService:
             'note': r.note
         } for r in records]
     
-    def detect_yield_drop(self, lookback_hours: float = 24.0, threshold_bp: float = 1.0) -> Optional[Dict]:
+    def detect_yield_drop(
+        self,
+        tenor: str = '10y',
+        lookback_hours: Optional[float] = None,
+        threshold_bp: Optional[float] = None,
+    ) -> Optional[Dict]:
         """
         检测收益率下跌
         
         Args:
-            lookback_hours: 回看小时数
-            threshold_bp: 阈值（基点）
+            tenor: 期限（5y/10y/20y）
+            lookback_hours: 回看小时数（默认读配置）
+            threshold_bp: 阈值（基点，默认读配置）
             
         Returns:
             如果检测到下跌，返回详情；否则返回None
         """
+        if lookback_hours is None:
+            lookback_hours = self._get_config('us10y_drop_lookback_hours', 24.0)
+        if threshold_bp is None:
+            threshold_bp = self._get_config('us10y_drop_threshold_bp', 1.0)
+
         cutoff_time = datetime.now() - timedelta(hours=lookback_hours)
         
-        # 获取最新数据
-        latest = self.db.query(USTreasury).order_by(USTreasury.fetched_at.desc()).first()
+        # 获取该期限最新数据
+        latest = self.db.query(USTreasury).filter_by(
+            tenor=tenor
+        ).order_by(USTreasury.fetched_at.desc()).first()
         
         if not latest:
             return None
         
-        # 获取回看期内的最高收益率
+        # 获取回看期内该期限的最高收益率
         from sqlalchemy import func
         max_yield = self.db.query(func.max(USTreasury.yield_pct)).filter(
-            USTreasury.fetched_at >= cutoff_time
+            USTreasury.fetched_at >= cutoff_time,
+            USTreasury.tenor == tenor
         ).scalar()
         
         if not max_yield:

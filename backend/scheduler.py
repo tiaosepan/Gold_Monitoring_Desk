@@ -7,7 +7,7 @@ from apscheduler.triggers.interval import IntervalTrigger
 from datetime import datetime
 from sqlalchemy.orm import Session
 
-from .database import SessionLocal, SchedulerStatus, SystemConfig
+from .database import SessionLocal, SchedulerStatus, SystemConfig, AlertHistory
 from .services import (
     SGEMonitorService,
     US10YMonitorService,
@@ -191,7 +191,7 @@ class TaskScheduler:
                     alert = service.check_premium_alert()
                     if alert:
                         scheduler_logger.warning(f"检测到SGE溢价警报: {alert.get('content')}")
-                        await self._send_alert(alert)
+                        await self._send_alert(alert, db)
             
             # 更新任务状态
             self._update_task_status(db, 'sge_monitor', 'success')
@@ -235,11 +235,11 @@ class TaskScheduler:
                     if result['success']:
                         scheduler_logger.info(f"美债数据采集成功 - 期限: {tenor} - 耗时: {result.get('duration_ms', 0)}ms")
                         
-                        # 检查是否需要推送警报
-                        alert = service.detect_yield_drop()
+                        # 检查是否需要推送警报（按期限与配置阈值）
+                        alert = service.detect_yield_drop(tenor=tenor)
                         if alert:
                             scheduler_logger.warning(f"检测到美债收益率警报: {tenor}")
-                            await self._send_alert(alert)
+                            await self._send_alert(alert, db)
                     else:
                         scheduler_logger.warning(f"美债数据采集失败 - 期限: {tenor} - 错误: {result.get('message')}")
 
@@ -367,12 +367,16 @@ class TaskScheduler:
                         scheduler_logger.warning(f"检测到Level {signal_level}反转信号 (V1)")
                 
                 if should_push and alert:
-                    await self._send_alert(alert)
+                    await self._send_alert(alert, db)
             else:
                 scheduler_logger.warning(f"反转检测失败: {result.get('message')}")
             
             # 更新任务状态
-            self._update_task_status(db, 'reversal_detector', 'success')
+            task_status = 'success' if result.get('success') else 'failed'
+            self._update_task_status(
+                db, 'reversal_detector', task_status,
+                None if result.get('success') else result.get('message')
+            )
             
             total_duration = int((datetime.now() - start_time).total_seconds() * 1000)
             scheduler_logger.debug(f"反转检测任务完成 - 总耗时: {total_duration}ms")
@@ -418,13 +422,33 @@ class TaskScheduler:
             
             db.commit()
     
-    async def _send_alert(self, alert: dict):
-        """警报仅写日志，不调用任何外部消息推送。"""
+    async def _send_alert(self, alert: dict, db: Session):
+        """警报写日志并入库，不调用任何外部消息推送。"""
         preview = (alert.get('content') or '')[:200]
         scheduler_logger.warning(
             f"[警报·仅日志] {alert.get('alert_type', 'alert')} | "
             f"level={alert.get('level')} | {preview}"
         )
+        alert_type_raw = alert.get('alert_type', '')
+        if '反转' in alert_type_raw or '黄金' in alert_type_raw:
+            alert_type = 'reversal'
+        elif '美债' in alert_type_raw or '收益率' in alert_type_raw:
+            alert_type = 'us10y'
+        elif '溢价' in alert_type_raw or 'SGE' in alert_type_raw:
+            alert_type = 'sge'
+        else:
+            alert_type = 'system'
+        try:
+            db.add(AlertHistory(
+                alert_type=alert_type,
+                alert_level=int(alert.get('level', 2)),
+                alert_content=alert.get('content', preview),
+                is_pushed=0,
+            ))
+            db.commit()
+        except Exception as e:
+            db.rollback()
+            scheduler_logger.error(f"警报入库失败: {e}")
 
 
 # 全局调度器实例

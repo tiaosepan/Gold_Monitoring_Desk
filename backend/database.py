@@ -1,7 +1,8 @@
 """
 数据库连接和模型定义
 """
-from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, Text, ForeignKey
+from pathlib import Path
+from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, Text, ForeignKey, text
 from sqlalchemy.orm import declarative_base, sessionmaker, relationship
 from datetime import datetime
 import os
@@ -226,10 +227,29 @@ def get_db():
         db.close()
 
 
+def _apply_db_indexes():
+    """应用 optimize_db_indexes.sql 中的索引（已存在则跳过）。"""
+    sql_file = Path(__file__).parent / 'optimize_db_indexes.sql'
+    if not sql_file.exists():
+        return
+    with engine.begin() as conn:
+        for block in sql_file.read_text(encoding='utf-8').split(';'):
+            stmt = block.strip()
+            if not stmt or stmt.startswith('--'):
+                continue
+            if stmt.upper().startswith('SELECT'):
+                continue
+            try:
+                conn.execute(text(stmt))
+            except Exception:
+                pass
+
+
 def init_database():
     """初始化数据库"""
     # 创建所有表
     Base.metadata.create_all(bind=engine)
+    _apply_db_indexes()
     
     # 使用ORM插入初始数据
     db = SessionLocal()
@@ -255,6 +275,7 @@ def init_database():
                 SystemConfig(config_key='market_close_time', config_value='15:30', description='市场收盘时间'),
                 SystemConfig(config_key='system_name', config_value='黄金监控中台', description='系统名称'),
                 SystemConfig(config_key='system_version', config_value='1.0.0', description='系统版本'),
+                SystemConfig(config_key='us10y_tenors', config_value='5y,10y,20y', description='美债采集期限'),
             ]
             db.add_all(configs)
             
