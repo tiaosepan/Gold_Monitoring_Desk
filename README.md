@@ -2,7 +2,7 @@
 
 ## 项目概述
 
-这是对原"黄金监控中台"系统（http://rev.sccit.com.cn:8000）的完整1:1复刻实现。系统实时监控SGE（上海黄金交易所）溢价、黄金价格反转信号、美债收益率变化和地缘政治/战争RSS事件，并在检测到关键信号时通过钉钉推送警报。
+这是对原"黄金监控中台"系统（http://rev.sccit.com.cn:8000）的完整1:1复刻实现。系统实时监控SGE（上海黄金交易所）溢价、黄金价格反转信号、美债收益率变化和地缘政治/战争RSS事件；检测到关键信号时写入调度器日志并在站内展示（不进行钉钉等外发推送）。
 
 ## 核心功能
 
@@ -68,11 +68,10 @@
 - 利空：袭击、轰炸、战争、军事、导弹、crisis、ration、reserves
 - 不确定：威胁、警告、forces、nations
 
-### 4. 钉钉推送
-- 支持多个推送目标（webhook + secret）
-- 仅推送Level 1和Level 2信号（高危）
-- Level 3和Level 4仅记录不推送
-- 推送冷却时间：1800秒（30分钟）
+### 4. 警报与日志
+- Level 1/2 等关键信号写入 `logs/scheduler.log`
+- 前端仪表盘展示最新反转等级与 RSS 事件
+- 反转警报冷却时间：1800秒（30分钟）
 
 ## 技术栈
 
@@ -264,13 +263,11 @@ Gold_Monitoring_Desk/
 │   │   ├── sge_monitor.py     # SGE监控服务
 │   │   ├── reversal_detector.py  # 反转检测服务
 │   │   ├── us10y_monitor.py   # 美债监控服务
-│   │   ├── rss_collector.py   # RSS采集服务
-│   │   └── notification.py    # 推送服务
+│   │   └── rss_collector.py   # RSS采集服务
 │   ├── utils/
 │   │   ├── goldapi_client.py  # Gold-API 客户端（国际金价主源）
 │   │   ├── sina_api.py        # 新浪财经API客户端（备用+国内数据）
-│   │   ├── fred_api.py        # FRED API客户端（美债备源）
-│   │   └── dingtalk.py        # 钉钉推送客户端
+│   │   └── fred_api.py        # FRED API客户端（美债备源）
 │   ├── database.py            # 数据库模型定义
 │   ├── scheduler.py           # 定时任务调度器
 │   └── main.py                # FastAPI应用入口
@@ -338,14 +335,6 @@ Gold_Monitoring_Desk/
 ```sql
 INSERT INTO rss_sources (name, url, category, is_active) VALUES
 ('源名称', 'RSS地址', 'political或war', 1);
-```
-
-### 推送配置（push_targets表）
-配置钉钉机器人webhook：
-
-```sql
-INSERT INTO push_targets (name, type, webhook_url, secret, is_active) VALUES
-('钉钉机器人-主群', 'dingtalk', 'webhook_url', 'secret', 1);
 ```
 
 ## 开发说明
@@ -486,6 +475,6 @@ UPDATE system_config SET config_value='900' WHERE config_key='rss_poll_interval_
 
 ---
 
-**最后更新：** 2026-03-25
-**版本：** 1.0.0
+**最后更新：** 2026-06-01
+**版本：** 1.0.1
 **状态：** 生产就绪（需配置FRED API密钥以启用完整美债监控）
